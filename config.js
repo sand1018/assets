@@ -34,30 +34,35 @@ function main(config) {
 
       "default-nameserver": ["223.5.5.5", "119.29.29.29"],
 
-      // 用 DoH 解析代理节点域名，减少明文 DNS 暴露。
       "proxy-server-nameserver": [
-        "https://dns.alidns.com/dns-query",
-        "https://doh.pub/dns-query",
+        "https://dns.alidns.com/dns-query#DIRECT",
+        "https://doh.pub/dns-query#DIRECT",
       ],
 
+      "direct-nameserver": [
+        "https://dns.alidns.com/dns-query#DIRECT",
+        "https://doh.pub/dns-query#DIRECT",
+      ],
+      "direct-nameserver-follow-policy": true,
+
       nameserver: [
+        "https://cloudflare-dns.com/dns-query#Proxy",
         "https://dns.google/dns-query#Proxy",
-        "https://dns.cloudflare.com/dns-query#Proxy",
       ],
 
       "nameserver-policy": {
         "geosite:private": ["223.5.5.5", "119.29.29.29"],
         "geosite:cn": [
-          "https://dns.alidns.com/dns-query",
-          "https://doh.pub/dns-query",
+          "https://dns.alidns.com/dns-query#DIRECT",
+          "https://doh.pub/dns-query#DIRECT",
         ],
         "geosite:geolocation-cn": [
-          "https://dns.alidns.com/dns-query",
-          "https://doh.pub/dns-query",
+          "https://dns.alidns.com/dns-query#DIRECT",
+          "https://doh.pub/dns-query#DIRECT",
         ],
         "+.cn": [
-          "https://dns.alidns.com/dns-query",
-          "https://doh.pub/dns-query",
+          "https://dns.alidns.com/dns-query#DIRECT",
+          "https://doh.pub/dns-query#DIRECT",
         ],
       },
 
@@ -72,7 +77,7 @@ function main(config) {
       {
         name: "Proxy",
         type: "select",
-        proxies: ["Auto", "Fallback", ...usableNodes],
+        proxies: ["Auto", "Fallback", "DIRECT", ...usableNodes],
       },
       {
         name: "Auto",
