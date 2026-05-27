@@ -10,13 +10,14 @@ function main(config) {
   const URL_TEST = "http://www.gstatic.com/generate_204";
 
   // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
+  // 2 字母代码用“非字母边界”包裹，避免 Plus/Cluster/Network 等英文词被误匹配（不用 lookbehind，兼容各 JS 引擎）。
   const regionDefs = [
-    { name: "香港", re: /香港|HK|Hong\s?Kong|🇭🇰/i },
-    { name: "台湾", re: /台湾|台灣|TW|Taiwan|🇹🇼/i },
-    { name: "日本", re: /日本|东京|大阪|JP|Japan|🇯🇵/i },
-    { name: "新加坡", re: /新加坡|狮城|獅城|SG|Singapore|🇸🇬/i },
-    { name: "美国", re: /美国|美國|US|United\s?States|America|🇺🇸/i },
-    { name: "韩国", re: /韩国|韓國|首尔|KR|Korea|🇰🇷/i },
+    { name: "香港", re: /香港|🇭🇰|Hong\s?Kong|(^|[^a-z])hk([^a-z]|$)/i },
+    { name: "台湾", re: /台湾|台灣|🇹🇼|Taiwan|(^|[^a-z])tw([^a-z]|$)/i },
+    { name: "日本", re: /日本|东京|大阪|🇯🇵|Japan|(^|[^a-z])jp([^a-z]|$)/i },
+    { name: "新加坡", re: /新加坡|狮城|獅城|🇸🇬|Singapore|(^|[^a-z])sg([^a-z]|$)/i },
+    { name: "美国", re: /美国|美國|🇺🇸|United\s?States|America|(^|[^a-z])(us|usa)([^a-z]|$)/i },
+    { name: "韩国", re: /韩国|韓國|首尔|🇰🇷|Korea|(^|[^a-z])kr([^a-z]|$)/i },
   ];
   const regionGroups = regionDefs
     .map((d) => ({ name: d.name, nodes: nodeNames.filter((n) => d.re.test(n)) }))
