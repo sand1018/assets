@@ -66,10 +66,19 @@ function main(config) {
         ],
       },
 
+      // 排除以下域名走 fake-ip：本地域、NTP 对时、Windows 联网检测，避免对时失败/误报“无 Internet”。
       "fake-ip-filter": [
         "*.lan",
         "*.local",
+        "*.localdomain",
+        "*.home.arpa",
         "localhost.ptlogin2.qq.com",
+        "time.*.com",
+        "time.*.gov",
+        "ntp.*.com",
+        "*.ntp.org",
+        "*.msftconnecttest.com",
+        "*.msftncsi.com",
       ],
     },
 
@@ -77,7 +86,7 @@ function main(config) {
       {
         name: "Proxy",
         type: "select",
-        proxies: ["Auto", "Fallback", "DIRECT", ...usableNodes],
+        proxies: ["Auto", "DIRECT", ...usableNodes],
       },
       {
         name: "Auto",
@@ -86,13 +95,7 @@ function main(config) {
         url: "http://www.gstatic.com/generate_204",
         interval: 300,
         tolerance: 50,
-      },
-      {
-        name: "Fallback",
-        type: "fallback",
-        proxies: usableNodes,
-        url: "http://www.gstatic.com/generate_204",
-        interval: 300,
+        lazy: true,
       },
     ],
 
@@ -102,11 +105,6 @@ function main(config) {
 
       "DOMAIN-KEYWORD,httpdns,REJECT",
       "DOMAIN-SUFFIX,dnspod.cn,REJECT",
-      "DOMAIN-SUFFIX,httpdns.alicdn.com,REJECT",
-      "DOMAIN-SUFFIX,httpdns.aliyuncs.com,REJECT",
-      "DOMAIN-SUFFIX,httpdns.baidu.com,REJECT",
-      "DOMAIN-SUFFIX,httpdns.qq.com,REJECT",
-      "DOMAIN-SUFFIX,httpdns.weixin.qq.com,REJECT",
 
       "GEOSITE,private,DIRECT",
       "GEOIP,private,DIRECT,no-resolve",
