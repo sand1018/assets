@@ -6,8 +6,9 @@
 // - Cloudflare DNS 优先
 // - 严格防 DNS 泄露
 // - 不使用 fallback
+// - 使用 jsDelivr ruleset CDN
 // - 兼容 Mihomo / Clash Meta / FlClash
-// - 偏稳定与长期使用
+// - 偏长期稳定使用
 
 function main(config) {
   config = config || {};
@@ -37,9 +38,9 @@ function main(config) {
 
   const regionNames = regionGroups.map((r) => r.name);
 
-  // DustinWin Ruleset
+  // Ruleset CDN
   const RS_PREFIX =
-    "https://ghfast.top/https://github.com/DustinWin/ruleset_geodata/releases/download/mihomo-ruleset";
+    "https://fastly.jsdelivr.net/gh/DustinWin/ruleset_geodata@mihomo-ruleset";
 
   const mrs = (name, behavior) => ({
     type: "http",
@@ -119,7 +120,7 @@ function main(config) {
       "direct-nameserver-follow-policy": true,
 
       // 国外 DNS（Cloudflare 优先）
-      // 不使用 fallback，避免节点失效导致 DNS 泄露
+      // 不使用 fallback，避免 DNS 泄露
       nameserver: [
         "tls://1.1.1.1#Proxy",
         "tls://1.0.0.1#Proxy",
@@ -230,4 +231,5 @@ function main(config) {
         proxies: [
           "Proxy",
           "Auto",
-          ...regionNa
+          ...regionNames,
+    
