@@ -183,7 +183,7 @@ function main(config) {
       "RULE-SET,media,流媒体",
       "RULE-SET,telegramip,Telegram,no-resolve",
 
-      "DOMAIN-SUFFIX,ntp.org,DIRECT",
+      "DOMAIN-SUFFIX,lggafw.com,DIRECT",
 
       "RULE-SET,proxy,Proxy",
 
