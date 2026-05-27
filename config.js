@@ -1,4 +1,4 @@
-// Sub-Store 覆写配置（最终版）
+// Sub-Store 覆写配置（稳定最终版）
 // 特点：
 // - 国内域名/IP 直连
 // - 国外域名/IP 代理
@@ -6,8 +6,8 @@
 // - Cloudflare DNS 优先
 // - 严格防 DNS 泄露
 // - 不使用 fallback
-// - Apple / 游戏 / NTP 优化
-// - 适合 Mihomo / Clash Meta / FlClash 长期使用
+// - 兼容 Mihomo / Clash Meta / FlClash
+// - 偏稳定与长期使用
 
 function main(config) {
   config = config || {};
@@ -230,4 +230,4 @@ function main(config) {
         proxies: [
           "Proxy",
           "Auto",
-       
+          ...regionNa
