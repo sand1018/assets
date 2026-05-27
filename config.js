@@ -1,13 +1,13 @@
-// Sub-Store 覆写配置（严格分流 + 防 DNS 泄露 + Cloudflare DNS 优先）
-//
+// Sub-Store 覆写配置（最终版）
 // 特点：
 // - 国内域名/IP 直连
 // - 国外域名/IP 代理
 // - Fake-IP + TUN 全接管
-// - 国外 DNS 使用 Cloudflare TLS
-// - 不使用 fallback，避免节点失效导致 DNS 泄露
-// - 国内 DNS 使用阿里 / 腾讯
-// - 适合 Mihomo / Clash Meta / FlClash
+// - Cloudflare DNS 优先
+// - 严格防 DNS 泄露
+// - 不使用 fallback
+// - Apple / 游戏 / NTP 优化
+// - 适合 Mihomo / Clash Meta / FlClash 长期使用
 
 function main(config) {
   config = config || {};
@@ -67,6 +67,7 @@ function main(config) {
     // TUN
     tun: {
       enable: true,
+
       stack: "system",
 
       "dns-hijack": [
@@ -77,6 +78,7 @@ function main(config) {
       ],
 
       "auto-route": true,
+
       "auto-detect-interface": true,
     },
 
@@ -117,7 +119,7 @@ function main(config) {
       "direct-nameserver-follow-policy": true,
 
       // 国外 DNS（Cloudflare 优先）
-      // 不使用 fallback，避免 DNS 泄露
+      // 不使用 fallback，避免节点失效导致 DNS 泄露
       nameserver: [
         "tls://1.1.1.1#Proxy",
         "tls://1.0.0.1#Proxy",
@@ -228,87 +230,4 @@ function main(config) {
         proxies: [
           "Proxy",
           "Auto",
-          ...regionNames,
-          "DIRECT",
-        ],
-      },
-
-      {
-        name: "AI",
-        type: "select",
-        proxies: [
-          "Proxy",
-          ...regionNames,
-          "Auto",
-          "DIRECT",
-        ],
-      },
-
-      {
-        name: "Telegram",
-        type: "select",
-        proxies: [
-          "Proxy",
-          ...regionNames,
-          "Auto",
-          "DIRECT",
-        ],
-      },
-
-      ...regionGroups.map((r) => ({
-        name: r.name,
-        type: "url-test",
-        proxies: r.nodes,
-        url: URL_TEST,
-        interval: 300,
-        tolerance: 50,
-        lazy: true,
-      })),
-    ],
-
-    // Rules
-    rules: [
-      // 面板
-      "DOMAIN,clash.razord.top,DIRECT",
-      "DOMAIN,yacd.metacubex.one,DIRECT",
-
-      // NTP
-      "DOMAIN-SUFFIX,ntp.org,DIRECT",
-
-      // 阻止 HTTPDNS
-      "DOMAIN-KEYWORD,httpdns,REJECT",
-
-      // 私有网络
-      "RULE-SET,private,DIRECT",
-      "RULE-SET,privateip,DIRECT,no-resolve",
-
-      // AI
-      "RULE-SET,ai,AI",
-
-      // 流媒体
-      "RULE-SET,media,流媒体",
-
-      // Telegram
-      "RULE-SET,telegramip,Telegram,no-resolve",
-
-      // 代理
-      "RULE-SET,proxy,Proxy",
-
-      // 中国域名
-      "RULE-SET,cn,DIRECT",
-      "GEOSITE,cn,DIRECT",
-
-      // 中国 IP
-      "RULE-SET,cnip,DIRECT,no-resolve",
-      "GEOIP,CN,DIRECT,no-resolve",
-
-      // 最终规则
-      "MATCH,Proxy",
-    ],
-  });
-
-  // 删除机场 provider
-  delete config["proxy-providers"];
-
-  return config;
-}
+       
