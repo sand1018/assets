@@ -106,7 +106,7 @@ function main(config) {
         "time.*.com",
         "time.*.gov",
         "ntp.*.com",
-        "*.ntp.org",
+        "+.ntp.org",
         "*.msftconnecttest.com",
         "*.msftncsi.com",
       ],
@@ -182,6 +182,8 @@ function main(config) {
       "RULE-SET,ai,AI",
       "RULE-SET,media,流媒体",
       "RULE-SET,telegramip,Telegram,no-resolve",
+
+      "DOMAIN-SUFFIX,ntp.org,DIRECT",
 
       "RULE-SET,proxy,Proxy",
 
