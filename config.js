@@ -1,16 +1,24 @@
-// 配置入口：保留 SubStore 生成的节点，只覆写 DNS、TUN、策略组和规则。
+// Sub-Store 覆写配置（严格分流 + 防 DNS 泄露 + Cloudflare DNS 优先）
+//
+// 特点：
+// - 国内域名/IP 直连
+// - 国外域名/IP 代理
+// - Fake-IP + TUN 全接管
+// - 国外 DNS 使用 Cloudflare TLS
+// - 不使用 fallback，避免节点失效导致 DNS 泄露
+// - 国内 DNS 使用阿里 / 腾讯
+// - 适合 Mihomo / Clash Meta / FlClash
+
 function main(config) {
   config = config || {};
 
   const proxies = Array.isArray(config.proxies) ? config.proxies : [];
-  const nodeNames = proxies.map((proxy) => proxy.name).filter(Boolean);
+  const nodeNames = proxies.map((p) => p.name).filter(Boolean);
   const usableNodes = nodeNames.length ? nodeNames : ["REJECT"];
 
-  // 测速地址，所有 url-test 组共用。
   const URL_TEST = "http://www.gstatic.com/generate_204";
 
-  // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
-  // 2 字母代码用“非字母边界”包裹，避免 Plus/Cluster/Network 等英文词被误匹配（不用 lookbehind，兼容各 JS 引擎）。
+  // 地区识别
   const regionDefs = [
     { name: "香港", re: /香港|🇭🇰|Hong\s?Kong|(^|[^a-z])hk([^a-z]|$)/i },
     { name: "台湾", re: /台湾|台灣|🇹🇼|Taiwan|(^|[^a-z])tw([^a-z]|$)/i },
@@ -19,15 +27,20 @@ function main(config) {
     { name: "美国", re: /美国|美國|🇺🇸|United\s?States|America|(^|[^a-z])(us|usa)([^a-z]|$)/i },
     { name: "韩国", re: /韩国|韓國|首尔|🇰🇷|Korea|(^|[^a-z])kr([^a-z]|$)/i },
   ];
+
   const regionGroups = regionDefs
-    .map((d) => ({ name: d.name, nodes: nodeNames.filter((n) => d.re.test(n)) }))
+    .map((d) => ({
+      name: d.name,
+      nodes: nodeNames.filter((n) => d.re.test(n)),
+    }))
     .filter((r) => r.nodes.length);
+
   const regionNames = regionGroups.map((r) => r.name);
 
-  // DustinWin/ruleset_geodata 规则集下载前缀（国内镜像 ghfast.top）。
+  // DustinWin Ruleset
   const RS_PREFIX =
     "https://ghfast.top/https://github.com/DustinWin/ruleset_geodata/releases/download/mihomo-ruleset";
-  // 生成单个 rule-provider 配置。
+
   const mrs = (name, behavior) => ({
     type: "http",
     behavior,
@@ -39,7 +52,11 @@ function main(config) {
 
   Object.assign(config, {
     ipv6: false,
+
+    "tcp-concurrent": true,
+
     mode: "rule",
+
     "log-level": "info",
 
     profile: {
@@ -47,92 +64,154 @@ function main(config) {
       "store-fake-ip": true,
     },
 
+    // TUN
     tun: {
       enable: true,
       stack: "system",
-      "dns-hijack": ["any:53", "tcp://any:53", "tcp://any:853", "udp://any:853"],
+
+      "dns-hijack": [
+        "any:53",
+        "tcp://any:53",
+        "tcp://any:853",
+        "udp://any:853",
+      ],
+
       "auto-route": true,
       "auto-detect-interface": true,
     },
 
+    // DNS
     dns: {
       enable: true,
+
       ipv6: false,
+
+      "prefer-h3": false,
+
       "enhanced-mode": "fake-ip",
+
       "fake-ip-range": "198.18.0.1/16",
-      "use-hosts": false,
+
       "respect-rules": true,
 
-      "default-nameserver": ["223.5.5.5", "119.29.29.29"],
+      "use-hosts": false,
 
+      // 本地 DNS（仅用于启动）
+      "default-nameserver": [
+        "223.5.5.5",
+        "119.29.29.29",
+      ],
+
+      // 节点域名解析
       "proxy-server-nameserver": [
         "https://dns.alidns.com/dns-query#DIRECT",
         "https://doh.pub/dns-query#DIRECT",
       ],
 
+      // 国内 DNS
       "direct-nameserver": [
         "https://dns.alidns.com/dns-query#DIRECT",
         "https://doh.pub/dns-query#DIRECT",
       ],
+
       "direct-nameserver-follow-policy": true,
 
+      // 国外 DNS（Cloudflare 优先）
+      // 不使用 fallback，避免 DNS 泄露
       nameserver: [
-        "https://cloudflare-dns.com/dns-query#Proxy",
-        "https://dns.google/dns-query#Proxy",
+        "tls://1.1.1.1#Proxy",
+        "tls://1.0.0.1#Proxy",
+        "tls://8.8.8.8#Proxy",
       ],
 
+      // DNS 分流
       "nameserver-policy": {
-        "geosite:private": ["223.5.5.5", "119.29.29.29"],
+        "geosite:private": [
+          "223.5.5.5",
+          "119.29.29.29",
+        ],
+
         "geosite:cn": [
           "https://dns.alidns.com/dns-query#DIRECT",
           "https://doh.pub/dns-query#DIRECT",
         ],
+
         "geosite:geolocation-cn": [
           "https://dns.alidns.com/dns-query#DIRECT",
           "https://doh.pub/dns-query#DIRECT",
         ],
+
+        "geosite:category-games@cn": [
+          "https://dns.alidns.com/dns-query#DIRECT",
+          "https://doh.pub/dns-query#DIRECT",
+        ],
+
         "+.cn": [
           "https://dns.alidns.com/dns-query#DIRECT",
           "https://doh.pub/dns-query#DIRECT",
         ],
       },
 
-      // 排除以下域名走 fake-ip：本地域、NTP 对时、Windows 联网检测，避免对时失败/误报“无 Internet”。
+      // Fake-IP 排除
       "fake-ip-filter": [
         "*.lan",
         "*.local",
         "*.localdomain",
         "*.home.arpa",
+
         "localhost.ptlogin2.qq.com",
+
+        "*.msftconnecttest.com",
+        "*.msftncsi.com",
+
         "time.*.com",
         "time.*.gov",
         "ntp.*.com",
         "+.ntp.org",
-        "*.msftconnecttest.com",
-        "*.msftncsi.com",
+
+        "+.srv.nintendo.net",
+        "+.stun.playstation.net",
+
+        "xbox.*.*.microsoft.com",
+
+        "connect.rom.miui.com",
+
+        "network-test.debian.org",
       ],
     },
 
-    // DustinWin 规则集：域名类 behavior=domain，IP 类 behavior=ipcidr。
+    // Rule Providers
     "rule-providers": {
       private: mrs("private", "domain"),
+
       privateip: mrs("privateip", "ipcidr"),
+
       ai: mrs("ai", "domain"),
+
       media: mrs("media", "domain"),
+
       proxy: mrs("proxy", "domain"),
+
       cn: mrs("cn", "domain"),
+
       cnip: mrs("cnip", "ipcidr"),
+
       telegramip: mrs("telegramip", "ipcidr"),
     },
 
+    // Proxy Groups
     "proxy-groups": [
-      // 总开关，默认 Auto，可手选地区组或具体节点。
       {
         name: "Proxy",
         type: "select",
-        proxies: ["Auto", ...regionNames, "DIRECT", ...usableNodes],
+        proxies: [
+          "Auto",
+          ...regionNames,
+          "DIRECT",
+          ...usableNodes,
+        ],
       },
-      // 全部节点测速选最快，未被使用时暂停测速。
+
       {
         name: "Auto",
         type: "url-test",
@@ -142,23 +221,40 @@ function main(config) {
         tolerance: 50,
         lazy: true,
       },
-      // 分场景组，默认跟随 Proxy，可手动切到指定地区。
+
       {
         name: "流媒体",
         type: "select",
-        proxies: ["Proxy", "Auto", ...regionNames, "DIRECT"],
+        proxies: [
+          "Proxy",
+          "Auto",
+          ...regionNames,
+          "DIRECT",
+        ],
       },
+
       {
         name: "AI",
         type: "select",
-        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT"],
+        proxies: [
+          "Proxy",
+          ...regionNames,
+          "Auto",
+          "DIRECT",
+        ],
       },
+
       {
         name: "Telegram",
         type: "select",
-        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT"],
+        proxies: [
+          "Proxy",
+          ...regionNames,
+          "Auto",
+          "DIRECT",
+        ],
       },
-      // 各地区组（仅生成有节点的地区）。
+
       ...regionGroups.map((r) => ({
         name: r.name,
         type: "url-test",
@@ -170,33 +266,48 @@ function main(config) {
       })),
     ],
 
+    // Rules
     rules: [
+      // 面板
       "DOMAIN,clash.razord.top,DIRECT",
       "DOMAIN,yacd.metacubex.one,DIRECT",
 
-      "DOMAIN-KEYWORD,httpdns,REJECT",
-      "DOMAIN-SUFFIX,dnspod.cn,REJECT",
+      // NTP
+      "DOMAIN-SUFFIX,ntp.org,DIRECT",
 
+      // 阻止 HTTPDNS
+      "DOMAIN-KEYWORD,httpdns,REJECT",
+
+      // 私有网络
       "RULE-SET,private,DIRECT",
       "RULE-SET,privateip,DIRECT,no-resolve",
 
+      // AI
       "RULE-SET,ai,AI",
+
+      // 流媒体
       "RULE-SET,media,流媒体",
+
+      // Telegram
       "RULE-SET,telegramip,Telegram,no-resolve",
 
-      "DOMAIN-SUFFIX,lggafw.com,DIRECT",
-
+      // 代理
       "RULE-SET,proxy,Proxy",
 
+      // 中国域名
       "RULE-SET,cn,DIRECT",
       "GEOSITE,cn,DIRECT",
+
+      // 中国 IP
       "RULE-SET,cnip,DIRECT,no-resolve",
       "GEOIP,CN,DIRECT,no-resolve",
 
+      // 最终规则
       "MATCH,Proxy",
     ],
   });
 
+  // 删除机场 provider
   delete config["proxy-providers"];
 
   return config;
