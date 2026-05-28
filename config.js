@@ -45,18 +45,28 @@ function main(config) {
     .filter((r) => r.nodes.length);
   const regionNames = regionGroups.map((r) => r.name);
 
-  // DustinWin/ruleset_geodata 规则集下载前缀（国内镜像 ghfast.top）。
-  // 注意：这是单一镜像，挂了会导致首次加载失败/规则缺失（进而 MATCH 兜底），如遇问题可换备用前缀。
+  // MetaCubeX/meta-rules-dat 的 meta 分支：mihomo 官方维护，每日更新，
+  // 覆盖 v2fly geosite/geoip 全量（geosite 1800+，含 apple/microsoft 等 DustinWin 缺失项）。
+  // 经 jsdelivr CDN 分发（Cloudflare/Fastly 底座，比免费公共 GitHub 镜像更稳）；
+  // 国内偶发被屏蔽，备选可换 https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo
   const RS_PREFIX =
-    "https://ghfast.top/https://github.com/DustinWin/ruleset_geodata/releases/download/mihomo-ruleset";
-  // 生成单个 rule-provider 配置。
-  const mrs = (name, behavior) => ({
+    "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo";
+  // site(): geosite/<name>.mrs (domain)；ip(): geoip/<name>.mrs (ipcidr)。
+  const site = (name) => ({
     type: "http",
-    behavior,
+    behavior: "domain",
     format: "mrs",
     interval: 86400,
-    path: `./ruleset/${name}.mrs`,
-    url: `${RS_PREFIX}/${name}.mrs`,
+    path: `./ruleset/geosite-${name}.mrs`,
+    url: `${RS_PREFIX}/geosite/${name}.mrs`,
+  });
+  const ip = (name) => ({
+    type: "http",
+    behavior: "ipcidr",
+    format: "mrs",
+    interval: 86400,
+    path: `./ruleset/geoip-${name}.mrs`,
+    url: `${RS_PREFIX}/geoip/${name}.mrs`,
   });
 
   Object.assign(config, {
@@ -147,18 +157,24 @@ function main(config) {
       ],
     },
 
-    // DustinWin 规则集：域名类 behavior=domain，IP 类 behavior=ipcidr。
+    // MetaCubeX rule-providers。语义平移要点：
+    //   ai    → category-ai-!cn（境外 AI 全集，比单一 ai 更广）
+    //   media → 无聚合，拆为 netflix/disney/youtube/spotify；其他境外流媒体由 proxy(geolocation-!cn) 兜住
+    //   proxy → geolocation-!cn（境外域名全集，替代 DustinWin 的 proxy）
     "rule-providers": {
-      private: mrs("private", "domain"),
-      privateip: mrs("privateip", "ipcidr"),
-      ai: mrs("ai", "domain"),
-      media: mrs("media", "domain"),
-      apple: mrs("apple", "domain"),
-      microsoft: mrs("microsoft", "domain"),
-      proxy: mrs("proxy", "domain"),
-      cn: mrs("cn", "domain"),
-      cnip: mrs("cnip", "ipcidr"),
-      telegramip: mrs("telegramip", "ipcidr"),
+      private: site("private"),
+      privateip: ip("private"),
+      ai: site("category-ai-!cn"),
+      apple: site("apple"),
+      microsoft: site("microsoft"),
+      netflix: site("netflix"),
+      disney: site("disney"),
+      youtube: site("youtube"),
+      spotify: site("spotify"),
+      proxy: site("geolocation-!cn"),
+      cn: site("cn"),
+      cnip: ip("cn"),
+      telegramip: ip("telegram"),
     },
 
     // 节点订阅为空时，所有策略组退化为 REJECT，避免 url-test 在 REJECT 上反复测速报错，
@@ -257,7 +273,11 @@ function main(config) {
       "AND,((NETWORK,UDP),(DST-PORT,443)),REJECT",
 
       "RULE-SET,ai,AI",
-      "RULE-SET,media,流媒体",
+      // 流媒体细分（MetaCubeX 无聚合 media 集）；其他境外流媒体由下方 RULE-SET,proxy 兜住。
+      "RULE-SET,netflix,流媒体",
+      "RULE-SET,disney,流媒体",
+      "RULE-SET,youtube,流媒体",
+      "RULE-SET,spotify,流媒体",
       "RULE-SET,telegramip,Telegram,no-resolve",
       "RULE-SET,apple,Apple",
       "RULE-SET,microsoft,Microsoft",
