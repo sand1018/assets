@@ -9,6 +9,14 @@ function main(config) {
   // 测速地址，所有 url-test 组共用。
   const URL_TEST = "http://www.gstatic.com/generate_204";
 
+  // 国内 DoH，IP 字面量（免 bootstrap、仍加密、绕开 respect-rules 解析圈），强制走 DIRECT。
+  // 本地一切解析统一用它：直连场景不外泄，正常代理时国外域名由代理远端解析（fake-ip 特性）故不受影响。
+  // 阿里 + 腾讯，多服务商冗余（mihomo 并发查询取最快应答）。
+  const CN_DOH = [
+    "https://223.5.5.5/dns-query#DIRECT", // 阿里，IP 字面量（零 bootstrap）
+    "https://doh.pub/dns-query#DIRECT", // 腾讯，域名（其 IP 证书不确定，用域名稳妥）
+  ];
+
   // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
   // 2 字母代码用“非字母边界”包裹，避免 Plus/Cluster/Network 等英文词被误匹配（不用 lookbehind，兼容各 JS 引擎）。
   const regionDefs = [
@@ -25,6 +33,7 @@ function main(config) {
   const regionNames = regionGroups.map((r) => r.name);
 
   // DustinWin/ruleset_geodata 规则集下载前缀（国内镜像 ghfast.top）。
+  // 注意：这是单一镜像，挂了会导致首次加载失败/规则缺失（进而 MATCH 兜底），如遇问题可换备用前缀。
   const RS_PREFIX =
     "https://ghfast.top/https://github.com/DustinWin/ruleset_geodata/releases/download/mihomo-ruleset";
   // 生成单个 rule-provider 配置。
@@ -47,6 +56,20 @@ function main(config) {
       "store-fake-ip": true,
     },
 
+    // 域名嗅探：fake-ip 下兜底——对“直接拿 IP 发起、不查 DNS”的连接，从 TLS SNI / HTTP Host 还原域名，
+    // 否则这类流量只能落到 GEOIP/cnip 兜底，命中不了域名规则。
+    sniffer: {
+      enable: true,
+      "force-dns-mapping": true,
+      "parse-pure-ip": true,
+      "override-destination": false,
+      sniff: {
+        HTTP: { ports: [80, "8080-8880"], "override-destination": true },
+        TLS: { ports: [443, 8443] },
+      },
+      "skip-domain": ["+.push.apple.com"],
+    },
+
     tun: {
       enable: true,
       stack: "system",
@@ -65,39 +88,26 @@ function main(config) {
 
       "default-nameserver": ["223.5.5.5", "119.29.29.29"],
 
-      "proxy-server-nameserver": [
-        "https://dns.alidns.com/dns-query#DIRECT",
-        "https://doh.pub/dns-query#DIRECT",
-      ],
+      // 解析代理节点域名（DIRECT，打破 respect-rules 的循环依赖）。
+      "proxy-server-nameserver": CN_DOH,
 
-      "direct-nameserver": [
-        "https://dns.alidns.com/dns-query#DIRECT",
-        "https://doh.pub/dns-query#DIRECT",
-      ],
-      "direct-nameserver-follow-policy": true,
+      // 直连流量解析：国内 DoH。
+      "direct-nameserver": CN_DOH,
+      "direct-nameserver-follow-policy": false,
 
-      nameserver: [
-        "https://cloudflare-dns.com/dns-query#Proxy",
-        "https://dns.google/dns-query#Proxy",
-      ],
+      // 默认解析器：国内 DoH（方案=直连走国内 DNS、不外泄）。
+      // fake-ip 下国外域名由代理远端解析，本地几乎只在需要真实 IP 时命中，国内 DNS 足够且最快。
+      nameserver: CN_DOH,
 
+      // policy 与规则体系统一用 rule-set 引用（不依赖内置 GeoSite 数据库）。
       "nameserver-policy": {
-        "geosite:private": ["223.5.5.5", "119.29.29.29"],
-        "geosite:cn": [
-          "https://dns.alidns.com/dns-query#DIRECT",
-          "https://doh.pub/dns-query#DIRECT",
-        ],
-        "geosite:geolocation-cn": [
-          "https://dns.alidns.com/dns-query#DIRECT",
-          "https://doh.pub/dns-query#DIRECT",
-        ],
-        "+.cn": [
-          "https://dns.alidns.com/dns-query#DIRECT",
-          "https://doh.pub/dns-query#DIRECT",
-        ],
+        "rule-set:private": ["223.5.5.5", "119.29.29.29"],
+        "rule-set:cn": CN_DOH,
+        "+.cn": CN_DOH,
       },
 
-      // 排除以下域名走 fake-ip：本地域、NTP 对时、Windows 联网检测，避免对时失败/误报“无 Internet”。
+      // 排除以下域名走 fake-ip：本地域、对时、联网检测、STUN/推送/游戏（需真实 IP），
+      // 避免对时失败/误报“无 Internet”/打洞与推送异常。
       "fake-ip-filter": [
         "*.lan",
         "*.local",
@@ -106,10 +116,17 @@ function main(config) {
         "localhost.ptlogin2.qq.com",
         "time.*.com",
         "time.*.gov",
+        "time.*.apple.com",
         "ntp.*.com",
         "+.ntp.org",
         "*.msftconnecttest.com",
         "*.msftncsi.com",
+        "+.stun.*",
+        "*.stun.playstation.net",
+        "*.srv.nintendo.net",
+        "+.push.apple.com",
+        "*.battle.net",
+        "*.battlenet.com.cn",
       ],
     },
 
@@ -126,7 +143,7 @@ function main(config) {
     },
 
     "proxy-groups": [
-      // 总开关，默认 Auto，可手选地区组或具体节点。
+      // 总开关，默认 Auto，可手选地区组或具体节点。含 DIRECT 方便整体切直连（此时本地 DNS 自动走国内 DoH）。
       {
         name: "Proxy",
         type: "select",
@@ -177,19 +194,32 @@ function main(config) {
       "DOMAIN-KEYWORD,httpdns,REJECT",
       "DOMAIN-SUFFIX,dnspod.cn,REJECT",
 
+      // 拦截第三方公共 DoH，防止浏览器/系统内置 DoH 绕过本地分流与 DNS。
+      // 注：仅对“按域名解析”的 DoH 生效；对硬编码 IP 的浏览器 DoH 需配合下方 QUIC 拦截。可按需增删。
+      "DOMAIN-SUFFIX,dns.google,REJECT",
+      "DOMAIN-SUFFIX,cloudflare-dns.com,REJECT",
+      "DOMAIN-SUFFIX,dns.quad9.net,REJECT",
+      "DOMAIN-SUFFIX,doh.opendns.com,REJECT",
+      "DOMAIN-SUFFIX,dns.adguard-dns.com,REJECT",
+      "DOMAIN-SUFFIX,dns.nextdns.io,REJECT",
+
       "RULE-SET,private,DIRECT",
       "RULE-SET,privateip,DIRECT,no-resolve",
+
+      // 拦截 QUIC(UDP/443)：封 DoH3，并迫使 YouTube/Google 等回落 TCP，分流更准、代理更稳。
+      // 如需保留 QUIC 性能可删除此条。
+      "AND,((NETWORK,UDP),(DST-PORT,443)),REJECT",
 
       "RULE-SET,ai,AI",
       "RULE-SET,media,流媒体",
       "RULE-SET,telegramip,Telegram,no-resolve",
 
+      // 手动特例：强制直连（按需保留/删除）。
       "DOMAIN-SUFFIX,lggafw.com,DIRECT",
 
       "RULE-SET,proxy,Proxy",
 
       "RULE-SET,cn,DIRECT",
-      "GEOSITE,cn,DIRECT",
       "RULE-SET,cnip,DIRECT,no-resolve",
       "GEOIP,CN,DIRECT,no-resolve",
 
@@ -201,4 +231,3 @@ function main(config) {
 
   return config;
 }
- 
