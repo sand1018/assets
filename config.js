@@ -17,8 +17,9 @@ function main(config) {
     "https://doh.pub/dns-query#DIRECT", // 腾讯，域名（其 IP 证书不确定，用域名稳妥）
   ];
 
-  // 国外 DoH：默认解析器使用，强制走不含 DIRECT 的 Final（Final 默认 Auto，等价行为；
-  // 且节点为空时 Final 退化为 REJECT 仍存在，避免引用不存在的 Auto 组导致启动校验失败）。
+  // 国外 DoH：默认解析器使用，走 Final 兜底组（Final 跟随 Proxy 的选择，逻辑统一；
+  // 节点为空时 Final 退化为 REJECT 仍存在，避免引用不存在的组导致启动校验失败）。
+  // 已知权衡：Proxy 一旦被切到 DIRECT，国外 DoH 也会跟随直连——这是上层"Final 默认 Proxy"的代价。
   // 首项是 IP 字面量 DoH，无需 bootstrap，作为冷启动应急，打破 FOREIGN_DOH 自身的域名解析依赖。
   const FOREIGN_DOH = [
     "https://1.1.1.1/dns-query#Final",
@@ -215,12 +216,12 @@ function main(config) {
         tolerance: 50,
         lazy: true,
       })),
-      // 严格兜底组放在最后：专供 MATCH 与 GEOIP 等"不确定"规则使用，永不含 DIRECT/REJECT。
-      // 目的：即便 Proxy 被误切到 DIRECT，或 GeoIP/规则集出现误判，兜底流量也不会落到直连导致隐私泄露。
+      // 兜底组放在最后：专供 MATCH 与 GEOIP 等"不确定"规则使用，本身不含 DIRECT/REJECT。
+      // 默认跟随 Proxy，便于"一个开关切所有"；已知权衡：Proxy 被切到 DIRECT 时 Final 也会跟着直连。
       {
         name: "Final",
         type: "select",
-        proxies: ["Auto", ...regionNames, ...usableNodes],
+        proxies: ["Proxy", "Auto", ...regionNames, ...usableNodes],
       },
     ] : [
       { name: "Proxy", type: "select", proxies: ["REJECT"] },
