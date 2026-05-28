@@ -4,7 +4,8 @@ function main(config) {
 
   const proxies = Array.isArray(config.proxies) ? config.proxies : [];
   const nodeNames = proxies.map((proxy) => proxy.name).filter(Boolean);
-  const usableNodes = nodeNames.length ? nodeNames : ["REJECT"];
+  const hasNodes = nodeNames.length > 0;
+  const usableNodes = hasNodes ? nodeNames : [];
 
   // 测速地址，所有 url-test 组共用。
   const URL_TEST = "http://www.gstatic.com/generate_204";
@@ -16,11 +17,17 @@ function main(config) {
     "https://doh.pub/dns-query#DIRECT", // 腾讯，域名（其 IP 证书不确定，用域名稳妥）
   ];
 
-  // 国外 DoH：默认解析器使用，强制走不含 DIRECT 的 Auto，避免 Proxy 切 DIRECT 时 DNS 一起直连。
+  // 国外 DoH：默认解析器使用，强制走不含 DIRECT 的 Final（Final 默认 Auto，等价行为；
+  // 且节点为空时 Final 退化为 REJECT 仍存在，避免引用不存在的 Auto 组导致启动校验失败）。
+  // 首项是 IP 字面量 DoH，无需 bootstrap，作为冷启动应急，打破 FOREIGN_DOH 自身的域名解析依赖。
   const FOREIGN_DOH = [
-    "https://cloudflare-dns.com/dns-query#Auto",
-    "https://dns.google/dns-query#Auto",
+    "https://1.1.1.1/dns-query#Final",
+    "https://cloudflare-dns.com/dns-query#Final",
+    "https://dns.google/dns-query#Final",
   ];
+
+  // bootstrap 只解析 DoH 服务器域名，必须是纯 IP（mihomo 限制：不接受 DoH/DoT 格式）。
+  const BOOTSTRAP_DNS = ["223.5.5.5", "119.29.29.29"];
 
   // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
   // 2 字母代码用“非字母边界”包裹，避免 Plus/Cluster/Network 等英文词被误匹配（不用 lookbehind，兼容各 JS 引擎）。
@@ -72,13 +79,15 @@ function main(config) {
         HTTP: { ports: [80, "8080-8880"], "override-destination": true },
         TLS: { ports: [443, 8443] },
       },
-      "skip-domain": ["+.push.apple.com"],
+      // 仅排除"嗅探后会出问题的少数服务"，其余 Apple/Microsoft 域名仍允许嗅探还原，
+      // 以便准确命中下方新增的 Apple/Microsoft 分组。
+      "skip-domain": ["+.push.apple.com", "+.teams.microsoft.com"],
     },
 
     tun: {
       enable: true,
       stack: "system",
-      "dns-hijack": ["any:53", "tcp://any:53", "tcp://any:853", "udp://any:853"],
+      "dns-hijack": ["any:53", "tcp://any:853", "udp://any:853"],
       "auto-route": true,
       "auto-detect-interface": true,
     },
@@ -92,7 +101,7 @@ function main(config) {
       "respect-rules": true,
 
       // bootstrap 只解析 DoH 服务器域名，不承载普通域名查询。
-      "default-nameserver": ["223.5.5.5", "119.29.29.29"],
+      "default-nameserver": BOOTSTRAP_DNS,
 
       // 解析代理节点域名（DIRECT，打破 respect-rules 的循环依赖）。
       "proxy-server-nameserver": CN_DOH,
@@ -106,7 +115,7 @@ function main(config) {
 
       // policy 与规则体系统一用 rule-set 引用（不依赖内置 GeoSite 数据库）。
       "nameserver-policy": {
-        "rule-set:private": ["223.5.5.5", "119.29.29.29"],
+        "rule-set:private": ["223.5.5.5#DIRECT", "119.29.29.29#DIRECT"],
         "rule-set:cn": CN_DOH,
         "+.cn": CN_DOH,
       },
@@ -126,6 +135,8 @@ function main(config) {
         "+.ntp.org",
         "*.msftconnecttest.com",
         "*.msftncsi.com",
+        "+.ocsp.*",
+        "+.crl.*",
         "+.stun.*",
         "*.stun.playstation.net",
         "*.srv.nintendo.net",
@@ -141,13 +152,17 @@ function main(config) {
       privateip: mrs("privateip", "ipcidr"),
       ai: mrs("ai", "domain"),
       media: mrs("media", "domain"),
+      apple: mrs("apple", "domain"),
+      microsoft: mrs("microsoft", "domain"),
       proxy: mrs("proxy", "domain"),
       cn: mrs("cn", "domain"),
       cnip: mrs("cnip", "ipcidr"),
       telegramip: mrs("telegramip", "ipcidr"),
     },
 
-    "proxy-groups": [
+    // 节点订阅为空时，所有策略组退化为 REJECT，避免 url-test 在 REJECT 上反复测速报错，
+    // 同时保证 fail-closed：没有节点时绝不直连，宁可断网也不泄露隐私。
+    "proxy-groups": hasNodes ? [
       // 总开关，默认 Auto，可手选地区组或具体节点。含 DIRECT 方便整体切直连，国外 DNS 不跟随此组。
       {
         name: "Proxy",
@@ -180,6 +195,16 @@ function main(config) {
         type: "select",
         proxies: ["Proxy", ...regionNames, "Auto", "DIRECT"],
       },
+      {
+        name: "Apple",
+        type: "select",
+        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT"],
+      },
+      {
+        name: "Microsoft",
+        type: "select",
+        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT"],
+      },
       // 各地区组（仅生成有节点的地区）。
       ...regionGroups.map((r) => ({
         name: r.name,
@@ -190,6 +215,21 @@ function main(config) {
         tolerance: 50,
         lazy: true,
       })),
+      // 严格兜底组放在最后：专供 MATCH 与 GEOIP 等"不确定"规则使用，永不含 DIRECT/REJECT。
+      // 目的：即便 Proxy 被误切到 DIRECT，或 GeoIP/规则集出现误判，兜底流量也不会落到直连导致隐私泄露。
+      {
+        name: "Final",
+        type: "select",
+        proxies: ["Auto", ...regionNames, ...usableNodes],
+      },
+    ] : [
+      { name: "Proxy", type: "select", proxies: ["REJECT"] },
+      { name: "流媒体", type: "select", proxies: ["REJECT"] },
+      { name: "AI", type: "select", proxies: ["REJECT"] },
+      { name: "Telegram", type: "select", proxies: ["REJECT"] },
+      { name: "Apple", type: "select", proxies: ["REJECT"] },
+      { name: "Microsoft", type: "select", proxies: ["REJECT"] },
+      { name: "Final", type: "select", proxies: ["REJECT"] },
     ],
 
     rules: [
@@ -218,17 +258,25 @@ function main(config) {
       "RULE-SET,ai,AI",
       "RULE-SET,media,流媒体",
       "RULE-SET,telegramip,Telegram,no-resolve",
+      "RULE-SET,apple,Apple",
+      "RULE-SET,microsoft,Microsoft",
 
       // 手动特例：强制直连（按需保留/删除）。
       "DOMAIN-SUFFIX,lggafw.com,DIRECT",
 
       "RULE-SET,proxy,Proxy",
 
+      // 规则集首次下载失败时，保证 .cn 域名仍然直连。
+      "DOMAIN-SUFFIX,cn,DIRECT",
       "RULE-SET,cn,DIRECT",
       "RULE-SET,cnip,DIRECT,no-resolve",
-      "GEOIP,CN,DIRECT,no-resolve",
+      // GeoIP 数据库存在边界段误判（CDN/Anycast/HK 段误标 CN 等），
+      // 命中即直连有隐私泄露风险，故改走 Final 严格兜底而非 DIRECT。
+      "GEOIP,CN,Final,no-resolve",
 
-      "MATCH,Proxy",
+      // 兜底改 Final 而非 Proxy：即便 Proxy 被误切到 DIRECT，
+      // 未明确归类的流量也不会泄露。
+      "MATCH,Final",
     ],
   });
 
