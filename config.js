@@ -9,12 +9,17 @@ function main(config) {
   // 测速地址，所有 url-test 组共用。
   const URL_TEST = "http://www.gstatic.com/generate_204";
 
-  // 国内 DoH，IP 字面量（免 bootstrap、仍加密、绕开 respect-rules 解析圈），强制走 DIRECT。
-  // 本地一切解析统一用它：直连场景不外泄，正常代理时国外域名由代理远端解析（fake-ip 特性）故不受影响。
-  // 阿里 + 腾讯，多服务商冗余（mihomo 并发查询取最快应答）。
+  // 国内 DoH：国内域名和直连流量使用，强制走 DIRECT。
+  // 223.5.5.5 是 IP 字面量，doh.pub 由 default-nameserver bootstrap。
   const CN_DOH = [
     "https://223.5.5.5/dns-query#DIRECT", // 阿里，IP 字面量（零 bootstrap）
     "https://doh.pub/dns-query#DIRECT", // 腾讯，域名（其 IP 证书不确定，用域名稳妥）
+  ];
+
+  // 国外 DoH：默认解析器使用，强制走不含 DIRECT 的 Auto，避免 Proxy 切 DIRECT 时 DNS 一起直连。
+  const FOREIGN_DOH = [
+    "https://cloudflare-dns.com/dns-query#Auto",
+    "https://dns.google/dns-query#Auto",
   ];
 
   // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
@@ -86,6 +91,7 @@ function main(config) {
       "use-hosts": false,
       "respect-rules": true,
 
+      // bootstrap 只解析 DoH 服务器域名，不承载普通域名查询。
       "default-nameserver": ["223.5.5.5", "119.29.29.29"],
 
       // 解析代理节点域名（DIRECT，打破 respect-rules 的循环依赖）。
@@ -95,9 +101,8 @@ function main(config) {
       "direct-nameserver": CN_DOH,
       "direct-nameserver-follow-policy": false,
 
-      // 默认解析器：国内 DoH（方案=直连走国内 DNS、不外泄）。
-      // fake-ip 下国外域名由代理远端解析，本地几乎只在需要真实 IP 时命中，国内 DNS 足够且最快。
-      nameserver: CN_DOH,
+      // 默认解析器：国外 DoH 经 Auto 代理，国内域名由 nameserver-policy 指回 CN_DOH。
+      nameserver: FOREIGN_DOH,
 
       // policy 与规则体系统一用 rule-set 引用（不依赖内置 GeoSite 数据库）。
       "nameserver-policy": {
@@ -143,7 +148,7 @@ function main(config) {
     },
 
     "proxy-groups": [
-      // 总开关，默认 Auto，可手选地区组或具体节点。含 DIRECT 方便整体切直连（此时本地 DNS 自动走国内 DoH）。
+      // 总开关，默认 Auto，可手选地区组或具体节点。含 DIRECT 方便整体切直连，国外 DNS 不跟随此组。
       {
         name: "Proxy",
         type: "select",
