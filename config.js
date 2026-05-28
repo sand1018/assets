@@ -73,6 +73,8 @@ function main(config) {
     ipv6: false,
     mode: "rule",
     "log-level": "info",
+    // 并发尝试 IPv4/IPv6 与多候选解析结果，首包更快（mihomo 默认 false）。
+    "tcp-concurrent": true,
 
     profile: {
       "store-selected": true,
@@ -125,8 +127,10 @@ function main(config) {
       nameserver: FOREIGN_DOH,
 
       // policy 与规则体系统一用 rule-set 引用（不依赖内置 GeoSite 数据库）。
+      // private 集里的 *.lan/*.local/*.home.arpa 等公网 DNS 必返 NXDOMAIN，
+      // 交给系统/路由器 DNS 处理，避免一轮无用的 DoH 往返。
       "nameserver-policy": {
-        "rule-set:private": ["223.5.5.5#DIRECT", "119.29.29.29#DIRECT"],
+        "rule-set:private": ["system"],
         "rule-set:cn": CN_DOH,
         "+.cn": CN_DOH,
       },
@@ -134,10 +138,10 @@ function main(config) {
       // 排除以下域名走 fake-ip：本地域、对时、联网检测、STUN/推送/游戏（需真实 IP），
       // 避免对时失败/误报“无 Internet”/打洞与推送异常。
       "fake-ip-filter": [
-        "*.lan",
-        "*.local",
-        "*.localdomain",
-        "*.home.arpa",
+        "+.lan",
+        "+.local",
+        "+.localdomain",
+        "+.home.arpa",
         "localhost.ptlogin2.qq.com",
         "time.*.com",
         "time.*.gov",
