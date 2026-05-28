@@ -200,27 +200,27 @@ function main(config) {
       {
         name: "流媒体",
         type: "select",
-        proxies: ["Proxy", "Auto", ...regionNames, "DIRECT"],
+        proxies: ["Proxy", "Auto", ...regionNames, "DIRECT", ...usableNodes],
       },
       {
         name: "AI",
         type: "select",
-        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT"],
+        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT", ...usableNodes],
       },
       {
         name: "Telegram",
         type: "select",
-        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT"],
+        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT", ...usableNodes],
       },
       {
         name: "Apple",
         type: "select",
-        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT"],
+        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT", ...usableNodes],
       },
       {
         name: "Microsoft",
         type: "select",
-        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT"],
+        proxies: ["Proxy", ...regionNames, "Auto", "DIRECT", ...usableNodes],
       },
       // 各地区组（仅生成有节点的地区）。
       ...regionGroups.map((r) => ({
