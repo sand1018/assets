@@ -185,6 +185,9 @@ function main(config) {
 
       // 手动特例：强制直连。
       "DOMAIN-SUFFIX,lggafw.com,DIRECT",
+      "DOMAIN-SUFFIX,tyhmobile.com,DIRECT",
+      "DOMAIN-SUFFIX,plexins.com,DIRECT",
+      "DOMAIN-SUFFIX,lanhuapp.com,DIRECT",
 
       "RULE-SET,proxy,Proxy",
 
