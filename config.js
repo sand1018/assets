@@ -188,6 +188,7 @@ function main(config) {
       "DOMAIN-SUFFIX,tyhmobile.com,DIRECT",
       "DOMAIN-SUFFIX,plexins.com,DIRECT",
       "DOMAIN-SUFFIX,lanhuapp.com,DIRECT",
+      "PROCESS-NAME-REGEX,(?i)(uuremote|gameviewer|uuyc|todesk|sunlogin),DIRECT",
 
       "RULE-SET,proxy,Proxy",
 
