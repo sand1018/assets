@@ -17,14 +17,45 @@ function main(config) {
   ];
 
   // 国外 DoH：默认解析器使用，走 Final 兜底组。
+  // 全部用纯 IP 形式，从源头避开下方对 dns.google / cloudflare-dns.com 的 REJECT 规则，
+  // 不再依赖 "#Final" 策略标签的隐式绕过行为来救场（1.1.1.1 / 8.8.8.8 证书 SAN 含对应 IP，TLS 校验正常）。
   const FOREIGN_DOH = [
     "https://1.1.1.1/dns-query#Final",
-    "https://cloudflare-dns.com/dns-query#Final",
-    "https://dns.google/dns-query#Final",
+    "https://1.0.0.1/dns-query#Final",
+    "https://8.8.8.8/dns-query#Final",
   ];
 
   // bootstrap 只解析 DoH 服务器域名，必须是纯 IP。
   const BOOTSTRAP_DNS = ["223.5.5.5", "119.29.29.29"];
+
+  // 手动直连特例：集中管理，避免散落在 rules 中段难维护。
+  const MANUAL_DIRECT = [
+    "DOMAIN-SUFFIX,lggafw.com,DIRECT",
+    "DOMAIN-SUFFIX,tyhmobile.com,DIRECT",
+    "DOMAIN-SUFFIX,plexins.com,DIRECT",
+    "DOMAIN-SUFFIX,lanhuapp.com,DIRECT",
+    "PROCESS-NAME-REGEX,(?i)(uuremote|gameviewer|uuyc|todesk|sunlogin),DIRECT",
+  ];
+
+  // 可信 P2P 应用白名单：明确信任、需要真实 IP 打洞的应用，特批直连。
+  // ⚠️ 隐私权衡：这会让对应应用的 STUN/打洞流量暴露真实公网 IP，与全局「STUN 强制走代理」的
+  //    防泄露设计是有意冲突的特例——仅对这里列出的应用生效，不影响其它 STUN 流量。
+  const TRUSTED_P2P = {
+    // 进程名：进程规则能兜住发往动态 peer 裸 IP 的 P2P 数据，是覆盖动态 IP 的主要办法。
+    //   parsecd.exe — Windows 负责联网的主进程（已核实，C:\Program Files\Parsec\parsecd.exe）。
+    //   Parsec      — macOS 上 Parsec.app 的进程名（首字母大写）。⚠️ 切勿用小写 "parsecd"：
+    //                 那是 Apple Siri/位置框架的系统守护进程（/usr/libexec/parsecd），与 Parsec 无关，
+    //                 误用会放行 Siri 流量且抓不到真正的 Parsec。Mac 上若仍匹配不到，
+    //                 请用活动监视器或 mihomo 连接面板确认实际进程名后替换。
+    //                 注：跨平台名互不干扰——Windows 上 "Parsec" 匹配不到，macOS 上 "parsecd.exe" 匹配不到。
+    processes: ["parsecd.exe", "Parsec"],
+    // 域名兜底（平台无关）：进程规则在 UDP 上可能失效时，至少保住信令/STUN 域名（stun.parsec.app、kessel-*）。
+    domains: ["parsec.app"],
+    // 端口兜底（平台无关，不依赖进程匹配）：strict 模式下进程规则可能漏匹配，端口规则是关键安全网。
+    // ⚠️ 生效前提：必须在 Parsec 两端把端口固定下来（Network 标签 → Host Start Port=8000、Client Port=9000，
+    //    需重启 Parsec）。若不固定，Parsec 用随机端口，这两行将匹配不到任何流量（无害但失效）。
+    udpPorts: ["8000-8009", "9000-9009"],
+  };
 
   // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
   const regionDefs = [
@@ -48,8 +79,19 @@ function main(config) {
     "log-level": "info",
     "tcp-concurrent": true,
 
+    // 统一延迟：剔除握手开销，url-test 测出的延迟更接近真实体感，Auto 组选节点更准。
+    "unified-delay": true,
+
+    // 进程匹配模式：strict 仅在判断可能用到进程规则时才查进程，开销略低；
+    // 代价是部分连接会被判定"用不到进程规则"而跳过查找，导致 MANUAL_DIRECT 的 todesk/向日葵
+    // 与 TRUSTED_P2P 的 Parsec 进程规则可能间歇漏匹配。若需进程规则稳定生效请改回 "always"；
+    // 若坚持 strict，建议 Parsec 改用 TRUSTED_P2P.udpPorts 端口兜底（不依赖进程匹配）。
+    "find-process-mode": "strict",
+
     profile: {
       "store-selected": true,
+      // 缓存 fake-ip 映射以加速启动；注意：改动下方 fake-ip-filter 后需手动清一次 fake-ip 缓存，
+      // 否则新加入 filter 的域名仍可能命中旧映射、走错路径。
       "store-fake-ip": true,
     },
 
@@ -164,9 +206,13 @@ function main(config) {
       "RULE-SET,private,DIRECT",
       "RULE-SET,privateip,DIRECT,no-resolve",
 
+      // 可信 P2P 应用特批直连：必须位于下方 STUN 代理规则与 UDP/443 REJECT 之前，
+      // 否则 Parsec 等应用的打洞流量会被全局规则截走。
+      ...buildTrustedP2PRules(TRUSTED_P2P),
+
       // WebRTC/STUN/TURN 前置，避免先命中国内 IP 直连规则导致真实公网 IP 暴露。
+      // 已移除 DOMAIN-KEYWORD,stun（子串匹配会误伤 stunning-* 等无关域名），RULE-SET,stun 已覆盖真实 STUN 域名。
       "RULE-SET,stun,Proxy",
-      "DOMAIN-KEYWORD,stun,Proxy",
       "AND,((NETWORK,UDP),(DST-PORT,3478)),Proxy",
       "AND,((NETWORK,UDP),(DST-PORT,19302)),Proxy",
       "AND,((NETWORK,UDP),(DST-PORT,5349)),Proxy",
@@ -183,12 +229,8 @@ function main(config) {
       "RULE-SET,apple,Apple",
       "RULE-SET,microsoft,Microsoft",
 
-      // 手动特例：强制直连。
-      "DOMAIN-SUFFIX,lggafw.com,DIRECT",
-      "DOMAIN-SUFFIX,tyhmobile.com,DIRECT",
-      "DOMAIN-SUFFIX,plexins.com,DIRECT",
-      "DOMAIN-SUFFIX,lanhuapp.com,DIRECT",
-      "PROCESS-NAME-REGEX,(?i)(uuremote|gameviewer|uuyc|todesk|sunlogin),DIRECT",
+      // 手动特例：强制直连（集中维护于顶部 MANUAL_DIRECT）。
+      ...MANUAL_DIRECT,
 
       "RULE-SET,proxy,Proxy",
 
@@ -218,6 +260,22 @@ function collectNodeNames(proxies) {
     }
   }
   return names;
+}
+
+// 构建可信 P2P 应用的直连规则：进程名 + 域名 + 可选端口，三类分别展开为 DIRECT 规则。
+function buildTrustedP2PRules(p2p) {
+  const rules = [];
+  for (const proc of p2p.processes) {
+    rules.push(`PROCESS-NAME,${proc},DIRECT`);
+  }
+  for (const domain of p2p.domains) {
+    rules.push(`DOMAIN-SUFFIX,${domain},DIRECT`);
+  }
+  // 端口兜底用 AND 组合 UDP + 目标端口，绕过 PROCESS-NAME 对 UDP 可能失效的已知问题。
+  for (const portRange of p2p.udpPorts) {
+    rules.push(`AND,((NETWORK,UDP),(DST-PORT,${portRange})),DIRECT`);
+  }
+  return rules;
 }
 
 // 构建地区分组：仅返回至少匹配到一个节点的地区。
