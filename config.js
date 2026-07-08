@@ -34,7 +34,18 @@ function main(config) {
     "DOMAIN-SUFFIX,tyhmobile.com,DIRECT",
     "DOMAIN-SUFFIX,plexins.com,DIRECT",
     "DOMAIN-SUFFIX,lanhuapp.com,DIRECT",
-    "PROCESS-NAME-REGEX,(?i)(uuremote|gameviewer|uuyc|todesk|sunlogin),DIRECT",
+  ];
+
+  // 远程桌面 / 远控软件优先直连：必须放在 STUN 代理和 UDP/443 REJECT 前面。
+  const REMOTE_DESKTOP_DIRECT = [
+    "PROCESS-NAME-REGEX,(?i)(uuremote|gameviewer|uuyc|todesk|sunlogin|anydesk|teamviewer|rustdesk|mstsc),DIRECT",
+    "DOMAIN-SUFFIX,todesk.com,DIRECT",
+    "DOMAIN-SUFFIX,todesk.cn,DIRECT",
+    "DOMAIN-SUFFIX,oray.com,DIRECT",
+    "DOMAIN-SUFFIX,sunlogin.oray.com,DIRECT",
+    "DOMAIN-SUFFIX,anydesk.com,DIRECT",
+    "DOMAIN-SUFFIX,teamviewer.com,DIRECT",
+    "DOMAIN-SUFFIX,rustdesk.com,DIRECT",
   ];
 
   // 可信 P2P 应用白名单：明确信任、需要真实 IP 打洞的应用，特批直连。
@@ -59,12 +70,12 @@ function main(config) {
 
   // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
   const regionDefs = [
-    { name: "香港", re: /香港|🇭🇰|Hong\s?Kong|(^|[^a-z])hk([^a-z]|$)/i },
-    { name: "台湾", re: /台湾|台灣|🇹🇼|Taiwan|(^|[^a-z])tw([^a-z]|$)/i },
-    { name: "日本", re: /日本|东京|大阪|🇯🇵|Japan|(^|[^a-z])jp([^a-z]|$)/i },
-    { name: "新加坡", re: /新加坡|狮城|獅城|🇸🇬|Singapore|(^|[^a-z])sg([^a-z]|$)/i },
-    { name: "美国", re: /美国|美國|🇺🇸|United\s?States|America|(^|[^a-z])(us|usa)([^a-z]|$)/i },
-    { name: "韩国", re: /韩国|韓國|首尔|🇰🇷|Korea|(^|[^a-z])kr([^a-z]|$)/i },
+    { name: "香港", re: /香港|Hong\s?Kong|(^|[^a-z])hk([^a-z]|$)/i },
+    { name: "台湾", re: /台湾|台灣|Taiwan|(^|[^a-z])tw([^a-z]|$)/i },
+    { name: "日本", re: /日本|东京|大阪|Japan|(^|[^a-z])jp([^a-z]|$)/i },
+    { name: "新加坡", re: /新加坡|狮城|獅城|Singapore|(^|[^a-z])sg([^a-z]|$)/i },
+    { name: "美国", re: /美国|美國|United\s?States|America|(^|[^a-z])(us|usa)([^a-z]|$)/i },
+    { name: "韩国", re: /韩国|韓國|首尔|Korea|(^|[^a-z])kr([^a-z]|$)/i },
   ];
   const regionGroups = buildRegionGroups(regionDefs, nodeNames);
   const regionNames = collectRegionNames(regionGroups);
@@ -82,11 +93,8 @@ function main(config) {
     // 统一延迟：剔除握手开销，url-test 测出的延迟更接近真实体感，Auto 组选节点更准。
     "unified-delay": true,
 
-    // 进程匹配模式：strict 仅在判断可能用到进程规则时才查进程，开销略低；
-    // 代价是部分连接会被判定"用不到进程规则"而跳过查找，导致 MANUAL_DIRECT 的 todesk/向日葵
-    // 与 TRUSTED_P2P 的 Parsec 进程规则可能间歇漏匹配。若需进程规则稳定生效请改回 "always"；
-    // 若坚持 strict，建议 Parsec 改用 TRUSTED_P2P.udpPorts 端口兜底（不依赖进程匹配）。
-    "find-process-mode": "strict",
+    // 进程匹配模式：远控/P2P 直连依赖进程规则，always 比 strict 更稳定。
+    "find-process-mode": "always",
 
     profile: {
       "store-selected": true,
@@ -205,6 +213,10 @@ function main(config) {
 
       "RULE-SET,private,DIRECT",
       "RULE-SET,privateip,DIRECT,no-resolve",
+
+      // 远控软件优先直连：必须位于下方 STUN 代理规则与 UDP/443 REJECT 之前，
+      // 否则打洞流量会被全局规则截走。
+      ...REMOTE_DESKTOP_DIRECT,
 
       // 可信 P2P 应用特批直连：必须位于下方 STUN 代理规则与 UDP/443 REJECT 之前，
       // 否则 Parsec 等应用的打洞流量会被全局规则截走。
