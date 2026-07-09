@@ -70,12 +70,54 @@ function main(config) {
 
   // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
   const regionDefs = [
-    { name: "香港", re: /香港|Hong\s?Kong|(^|[^a-z])hk([^a-z]|$)/i },
-    { name: "台湾", re: /台湾|台灣|Taiwan|(^|[^a-z])tw([^a-z]|$)/i },
-    { name: "日本", re: /日本|东京|大阪|Japan|(^|[^a-z])jp([^a-z]|$)/i },
-    { name: "新加坡", re: /新加坡|狮城|獅城|Singapore|(^|[^a-z])sg([^a-z]|$)/i },
-    { name: "美国", re: /美国|美國|United\s?States|America|(^|[^a-z])(us|usa)([^a-z]|$)/i },
-    { name: "韩国", re: /韩国|韓國|首尔|Korea|(^|[^a-z])kr([^a-z]|$)/i },
+    { name: "香港", re: /香港|Hong\s?Kong|🇭🇰|(^|[^a-z])hk([^a-z]|$)/i },
+    { name: "台湾", re: /台湾|台灣|Taiwan|🇹🇼|(^|[^a-z])tw([^a-z]|$)/i },
+    { name: "日本", re: /日本|东京|大阪|Japan|🇯🇵|(^|[^a-z])jp([^a-z]|$)/i },
+    {
+      name: "新加坡",
+      re: /新加坡|狮城|獅城|Singapore|🇸🇬|(^|[^a-z])sg([^a-z]|$)/i,
+    },
+    {
+      name: "美国",
+      re: /美国|美國|United\s?States|America|🇺🇸|(^|[^a-z])(us|usa)([^a-z]|$)/i,
+    },
+    { name: "韩国", re: /韩国|韓國|首尔|Korea|🇰🇷|(^|[^a-z])kr([^a-z]|$)/i },
+    {
+      // 只用 uk 代码：gb 会误伤「剩余100GB」等流量标签，故不启用。
+      name: "英国",
+      re: /英国|英國|United\s?Kingdom|Britain|London|伦敦|🇬🇧|(^|[^a-z])uk([^a-z]|$)/i,
+    },
+    { name: "德国", re: /德国|德國|Germany|🇩🇪|(^|[^a-z])de([^a-z]|$)/i },
+    { name: "法国", re: /法国|法國|France|🇫🇷|(^|[^a-z])fr([^a-z]|$)/i },
+    {
+      name: "荷兰",
+      re: /荷兰|荷蘭|Netherlands|Holland|🇳🇱|(^|[^a-z])nl([^a-z]|$)/i,
+    },
+    {
+      // ⚠️ ca 同时是美国加州(California)缩写：US-CA 节点会同时落入美国和加拿大组。
+      name: "加拿大",
+      re: /加拿大|Canada|🇨🇦|(^|[^a-z])ca([^a-z]|$)/i,
+    },
+    {
+      // 用「澳洲/澳大利亚」而非裸「澳」，避开澳门。
+      name: "澳大利亚",
+      re: /澳大利亚|澳洲|Australia|🇦🇺|(^|[^a-z])au([^a-z]|$)/i,
+    },
+    { name: "泰国", re: /泰国|泰國|Thailand|🇹🇭|(^|[^a-z])th([^a-z]|$)/i },
+    // 省略 my 代码：撞英文 "my"，仅靠名称/Emoji 匹配。
+    { name: "马来西亚", re: /马来西亚|马来|Malaysia|🇲🇾/i },
+    { name: "越南", re: /越南|Vietnam|🇻🇳|(^|[^a-z])vn([^a-z]|$)/i },
+    {
+      name: "菲律宾",
+      re: /菲律宾|菲律賓|Philippines|🇵🇭|(^|[^a-z])ph([^a-z]|$)/i,
+    },
+    {
+      name: "俄罗斯",
+      re: /俄罗斯|俄羅斯|俄国|Russia|🇷🇺|(^|[^a-z])ru([^a-z]|$)/i,
+    },
+    { name: "土耳其", re: /土耳其|Turkey|🇹🇷|(^|[^a-z])tr([^a-z]|$)/i },
+    // 省略 in 代码：撞英文 "in"，仅靠名称/Emoji 匹配。
+    { name: "印度", re: /印度|India|🇮🇳/i },
   ];
   const regionGroups = buildRegionGroups(regionDefs, nodeNames);
   const regionNames = collectRegionNames(regionGroups);
