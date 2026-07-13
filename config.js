@@ -2,7 +2,12 @@
 function main(config) {
   config = config || {};
 
-  const proxies = Array.isArray(config.proxies) ? config.proxies : [];
+  const rawProxies = Array.isArray(config.proxies) ? config.proxies : [];
+  // 去掉官网/流量/到期等说明项，避免污染 url-test 与策略组。
+  const proxies = rawProxies.filter(
+    (proxy) => proxy && proxy.name && !isNonNodeName(proxy.name)
+  );
+  config.proxies = proxies;
   const nodeNames = collectNodeNames(proxies);
   const hasNodes = nodeNames.length > 0;
   const usableNodes = hasNodes ? nodeNames : [];
@@ -62,62 +67,62 @@ function main(config) {
     processes: ["parsecd.exe", "Parsec"],
     // 域名兜底（平台无关）：进程规则在 UDP 上可能失效时，至少保住信令/STUN 域名（stun.parsec.app、kessel-*）。
     domains: ["parsec.app"],
-    // 端口兜底（平台无关，不依赖进程匹配）：strict 模式下进程规则可能漏匹配，端口规则是关键安全网。
-    // ⚠️ 生效前提：必须在 Parsec 两端把端口固定下来（Network 标签 → Host Start Port=8000、Client Port=9000，
-    //    需重启 Parsec）。若不固定，Parsec 用随机端口，这两行将匹配不到任何流量（无害但失效）。
-    udpPorts: ["8000-8009", "9000-9009"],
+    // 端口兜底默认关闭：全局 UDP 端口直连不限进程，会扩大真实 IP 暴露面。
+    // 若进程规则在 UDP 上失效且已在 Parsec 两端固定端口（Host Start Port=8000、Client Port=9000），
+    // 可显式改为 ["8000-8009", "9000-9009"] 作为安全网。
+    udpPorts: [],
   };
 
   // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
   const regionDefs = [
-    { name: "香港", re: /香港|Hong\s?Kong|🇭🇰|(^|[^a-z])hk([^a-z]|$)/i },
-    { name: "台湾", re: /台湾|台灣|Taiwan|🇹🇼|(^|[^a-z])tw([^a-z]|$)/i },
-    { name: "日本", re: /日本|东京|大阪|Japan|🇯🇵|(^|[^a-z])jp([^a-z]|$)/i },
+    { name: "香港", icon: "🇭🇰", re: /香港|Hong\s?Kong|🇭🇰|(^|[^a-z])hk([^a-z]|$)/i },
+    { name: "台湾", icon: "🇹🇼", re: /台湾|台灣|Taiwan|🇹🇼|(^|[^a-z])tw([^a-z]|$)/i },
+    { name: "日本", icon: "🇯🇵", re: /日本|东京|大阪|Japan|🇯🇵|(^|[^a-z])jp([^a-z]|$)/i },
     {
-      name: "新加坡",
+      name: "新加坡", icon: "🇸🇬",
       re: /新加坡|狮城|獅城|Singapore|🇸🇬|(^|[^a-z])sg([^a-z]|$)/i,
     },
     {
-      name: "美国",
+      name: "美国", icon: "🇺🇸",
       re: /美国|美國|United\s?States|America|🇺🇸|(^|[^a-z])(us|usa)([^a-z]|$)/i,
     },
-    { name: "韩国", re: /韩国|韓國|首尔|Korea|🇰🇷|(^|[^a-z])kr([^a-z]|$)/i },
+    { name: "韩国", icon: "🇰🇷", re: /韩国|韓國|首尔|Korea|🇰🇷|(^|[^a-z])kr([^a-z]|$)/i },
     {
       // 只用 uk 代码：gb 会误伤「剩余100GB」等流量标签，故不启用。
-      name: "英国",
+      name: "英国", icon: "🇬🇧",
       re: /英国|英國|United\s?Kingdom|Britain|London|伦敦|🇬🇧|(^|[^a-z])uk([^a-z]|$)/i,
     },
-    { name: "德国", re: /德国|德國|Germany|🇩🇪|(^|[^a-z])de([^a-z]|$)/i },
-    { name: "法国", re: /法国|法國|France|🇫🇷|(^|[^a-z])fr([^a-z]|$)/i },
+    { name: "德国", icon: "🇩🇪", re: /德国|德國|Germany|🇩🇪|(^|[^a-z])de([^a-z]|$)/i },
+    { name: "法国", icon: "🇫🇷", re: /法国|法國|France|🇫🇷|(^|[^a-z])fr([^a-z]|$)/i },
     {
-      name: "荷兰",
+      name: "荷兰", icon: "🇳🇱",
       re: /荷兰|荷蘭|Netherlands|Holland|🇳🇱|(^|[^a-z])nl([^a-z]|$)/i,
     },
     {
-      // ⚠️ ca 同时是美国加州(California)缩写：US-CA 节点会同时落入美国和加拿大组。
-      name: "加拿大",
-      re: /加拿大|Canada|🇨🇦|(^|[^a-z])ca([^a-z]|$)/i,
+      // 不用裸 ca：会误收 US-CA（加州）。改用 can / 全称 / Emoji；配合下方首命中分配。
+      name: "加拿大", icon: "🇨🇦",
+      re: /加拿大|Canada|🇨🇦|(^|[^a-z])can([^a-z]|$)/i,
     },
     {
       // 用「澳洲/澳大利亚」而非裸「澳」，避开澳门。
-      name: "澳大利亚",
+      name: "澳大利亚", icon: "🇦🇺",
       re: /澳大利亚|澳洲|Australia|🇦🇺|(^|[^a-z])au([^a-z]|$)/i,
     },
-    { name: "泰国", re: /泰国|泰國|Thailand|🇹🇭|(^|[^a-z])th([^a-z]|$)/i },
+    { name: "泰国", icon: "🇹🇭", re: /泰国|泰國|Thailand|🇹🇭|(^|[^a-z])th([^a-z]|$)/i },
     // 省略 my 代码：撞英文 "my"，仅靠名称/Emoji 匹配。
-    { name: "马来西亚", re: /马来西亚|马来|Malaysia|🇲🇾/i },
-    { name: "越南", re: /越南|Vietnam|🇻🇳|(^|[^a-z])vn([^a-z]|$)/i },
+    { name: "马来西亚", icon: "🇲🇾", re: /马来西亚|马来|Malaysia|🇲🇾/i },
+    { name: "越南", icon: "🇻🇳", re: /越南|Vietnam|🇻🇳|(^|[^a-z])vn([^a-z]|$)/i },
     {
-      name: "菲律宾",
+      name: "菲律宾", icon: "🇵🇭",
       re: /菲律宾|菲律賓|Philippines|🇵🇭|(^|[^a-z])ph([^a-z]|$)/i,
     },
     {
-      name: "俄罗斯",
+      name: "俄罗斯", icon: "🇷🇺",
       re: /俄罗斯|俄羅斯|俄国|Russia|🇷🇺|(^|[^a-z])ru([^a-z]|$)/i,
     },
-    { name: "土耳其", re: /土耳其|Turkey|🇹🇷|(^|[^a-z])tr([^a-z]|$)/i },
+    { name: "土耳其", icon: "🇹🇷", re: /土耳其|Turkey|🇹🇷|(^|[^a-z])tr([^a-z]|$)/i },
     // 省略 in 代码：撞英文 "in"，仅靠名称/Emoji 匹配。
-    { name: "印度", re: /印度|India|🇮🇳/i },
+    { name: "印度", icon: "🇮🇳", re: /印度|India|🇮🇳/i },
   ];
   const regionGroups = buildRegionGroups(regionDefs, nodeNames);
   const regionNames = collectRegionNames(regionGroups);
@@ -222,7 +227,11 @@ function main(config) {
       privateip: buildIpProvider(RS_PREFIX, "private"),
       stun: buildSiteProvider(RS_PREFIX, "category-stun"),
       ai: buildSiteProvider(RS_PREFIX, "category-ai-!cn"),
+      applecn: buildSiteProvider(RS_PREFIX, "apple-cn"),
       apple: buildSiteProvider(RS_PREFIX, "apple"),
+      // MetaCubeX geosite 使用 microsoft@cn / azure@cn（不是 *-cn 文件名）
+      microsoftcn: buildSiteProvider(RS_PREFIX, "microsoft@cn"),
+      azurecn: buildSiteProvider(RS_PREFIX, "azure@cn"),
       microsoft: buildSiteProvider(RS_PREFIX, "microsoft"),
       netflix: buildSiteProvider(RS_PREFIX, "netflix"),
       disney: buildSiteProvider(RS_PREFIX, "disney"),
@@ -231,6 +240,7 @@ function main(config) {
       proxy: buildSiteProvider(RS_PREFIX, "geolocation-!cn"),
       cn: buildSiteProvider(RS_PREFIX, "cn"),
       cnip: buildIpProvider(RS_PREFIX, "cn"),
+      telegram: buildSiteProvider(RS_PREFIX, "telegram"),
       telegramip: buildIpProvider(RS_PREFIX, "telegram"),
     },
 
@@ -243,7 +253,6 @@ function main(config) {
       "DOMAIN,yacd.metacubex.one,DIRECT",
 
       "DOMAIN-KEYWORD,httpdns,REJECT",
-      "DOMAIN-SUFFIX,dnspod.cn,REJECT",
 
       // 拦截第三方公共 DoH，防止浏览器/系统内置 DoH 绕过本地分流与 DNS。
       "DOMAIN-SUFFIX,dns.google,REJECT",
@@ -279,8 +288,13 @@ function main(config) {
       "RULE-SET,disney,流媒体",
       "RULE-SET,youtube,流媒体",
       "RULE-SET,spotify,流媒体",
+      "RULE-SET,telegram,Telegram",
       "RULE-SET,telegramip,Telegram,no-resolve",
+      // 国区 Apple / Microsoft 直连，避免全球规则集抢在 cn 前把国区流量送进策略组→Proxy。
+      "RULE-SET,applecn,DIRECT",
       "RULE-SET,apple,Apple",
+      "RULE-SET,microsoftcn,DIRECT",
+      "RULE-SET,azurecn,DIRECT",
       "RULE-SET,microsoft,Microsoft",
 
       // 手动特例：强制直连（集中维护于顶部 MANUAL_DIRECT）。
@@ -300,16 +314,29 @@ function main(config) {
     ],
   });
 
-  delete config["proxy-providers"];
+  // 已有展开节点时去掉动态源，避免与 proxies 双轨；无节点时保留，供上游 provider 继续供数。
+  if (proxies.length > 0) {
+    delete config["proxy-providers"];
+  }
 
   return config;
 }
 
-// 收集订阅节点名称：只保留有 name 的代理节点。
+// 判断是否为订阅里的说明/营销项（非真实节点）。
+function isNonNodeName(name) {
+  const n = String(name).trim();
+  if (!n) return true;
+  // 常见机场伪节点：官网、流量、到期、社群入口等。
+  return /官网|官方|网站|网址|地址|订阅|流量|到期|过期|剩余|套餐|重置|距离|链接|机场|频道|群组|客服|通知|说明|教程|签到|邀请|返利|优惠|测试中|维护|离线|用完|耗尽|刷新|账号|密码|无法使用|流量重置|已用|可用|总量|加入|电报|微信|公众号|\bTG\b|\bTelegram\b|t\.me|discord|official|expire|traffic|surplus|quota|channel|invite|support|website|https?:\/\//i.test(
+    n
+  );
+}
+
+// 收集订阅节点名称：只保留有 name 的真实节点。
 function collectNodeNames(proxies) {
   const names = [];
   for (const proxy of proxies) {
-    if (proxy && proxy.name) {
+    if (proxy && proxy.name && !isNonNodeName(proxy.name)) {
       names.push(proxy.name);
     }
   }
@@ -332,28 +359,41 @@ function buildTrustedP2PRules(p2p) {
   return rules;
 }
 
-// 构建地区分组：仅返回至少匹配到一个节点的地区。
+// 构建地区分组：每个节点只归入第一个命中的地区，避免 US-CA 等多重归属污染 url-test。
 function buildRegionGroups(regionDefs, nodeNames) {
+  const assigned = new Set();
   const groups = [];
   for (const region of regionDefs) {
     const nodes = [];
     for (const nodeName of nodeNames) {
+      if (assigned.has(nodeName)) continue;
       if (region.re.test(nodeName)) {
         nodes.push(nodeName);
+        assigned.add(nodeName);
       }
     }
     if (nodes.length > 0) {
-      groups.push({ name: region.name, nodes });
+      groups.push({ name: region.name, icon: region.icon || "", nodes });
     }
   }
   return groups;
+}
+
+// 地区外层 select 展示名：国旗 + 地区名（供其它策略组引用）。
+function regionSelectLabel(region) {
+  return region.icon ? region.icon + " " + region.name : region.name;
+}
+
+// 地区内层 url-test 名：♻️ + 地区 + 自动；hidden，仅在地区组内可选。
+function regionAutoLabel(region) {
+  return "♻️ " + region.name + "自动";
 }
 
 // 收集地区组名称：用于策略组引用。
 function collectRegionNames(regionGroups) {
   const names = [];
   for (const region of regionGroups) {
-    names.push(region.name);
+    names.push(regionSelectLabel(region));
   }
   return names;
 }
@@ -382,66 +422,80 @@ function buildIpProvider(prefix, name) {
   };
 }
 
-// 构建有节点时的策略组：主代理组保留 DIRECT，便于手动切换。
+// 构建有节点时的策略组（流行双层 + hidden + ico）。
+// - ♻️ 自动选择：全局 url-test，面板可见
+// - 地区外层 select（可见，国旗 ico）：首项「♻️ 地区自动」+ 该区节点
+// - 地区内层 url-test（hidden: true）：只测该区，面板不单独展示
 function buildProxyGroups(urlTest, usableNodes, regionGroups, regionNames) {
+  const AUTO_GROUP = "♻️ 自动选择";
+  const urlTestBase = {
+    type: "url-test",
+    url: urlTest,
+    interval: 300,
+    tolerance: 50,
+    lazy: true,
+  };
+
   const groups = [
+    {
+      name: AUTO_GROUP,
+      ...urlTestBase,
+      proxies: usableNodes,
+    },
     {
       name: "Proxy",
       type: "select",
-      proxies: ["Auto", ...regionNames, "DIRECT", ...usableNodes],
-    },
-    {
-      name: "Auto",
-      type: "url-test",
-      proxies: usableNodes,
-      url: urlTest,
-      interval: 300,
-      tolerance: 50,
-      lazy: true,
+      proxies: [AUTO_GROUP, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
       name: "流媒体",
       type: "select",
-      proxies: ["Proxy", "Auto", ...regionNames, "DIRECT", ...usableNodes],
+      proxies: ["Proxy", AUTO_GROUP, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
       name: "AI",
       type: "select",
-      proxies: ["Proxy", ...regionNames, "Auto", "DIRECT", ...usableNodes],
+      proxies: ["Proxy", ...regionNames, AUTO_GROUP, "DIRECT", ...usableNodes],
     },
     {
       name: "Telegram",
       type: "select",
-      proxies: ["Proxy", ...regionNames, "Auto", "DIRECT", ...usableNodes],
+      proxies: ["Proxy", ...regionNames, AUTO_GROUP, "DIRECT", ...usableNodes],
     },
     {
       name: "Apple",
       type: "select",
-      proxies: ["Proxy", ...regionNames, "Auto", "DIRECT", ...usableNodes],
+      proxies: ["Proxy", ...regionNames, AUTO_GROUP, "DIRECT", ...usableNodes],
     },
     {
       name: "Microsoft",
       type: "select",
-      proxies: ["Proxy", ...regionNames, "Auto", "DIRECT", ...usableNodes],
+      proxies: ["Proxy", ...regionNames, AUTO_GROUP, "DIRECT", ...usableNodes],
     },
   ];
 
   for (const region of regionGroups) {
+    const regionAuto = regionAutoLabel(region);
+    const regionSelect = regionSelectLabel(region);
     groups.push({
-      name: region.name,
-      type: "url-test",
+      name: regionAuto,
+      ...urlTestBase,
       proxies: region.nodes,
-      url: urlTest,
-      interval: 300,
-      tolerance: 50,
-      lazy: true,
+      // 仅作地区组内选项；需面板支持 hidden（metacubexd / Verge 等）
+      hidden: true,
+    });
+    groups.push({
+      name: regionSelect,
+      type: "select",
+      proxies: [regionAuto, ...region.nodes],
     });
   }
 
   groups.push({
     name: "Final",
     type: "select",
-    proxies: ["Proxy", "Auto", ...regionNames, ...usableNodes],
+    // 保持 fail-closed：不提供 DIRECT。
+    proxies: ["Proxy", AUTO_GROUP, ...regionNames, ...usableNodes],
   });
 
   return groups;
