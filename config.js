@@ -455,22 +455,22 @@ function buildProxyGroups(urlTest, usableNodes, regionGroups, regionNames) {
     {
       name: "AI",
       type: "select",
-      proxies: ["Proxy", ...regionNames, AUTO_GROUP, "DIRECT", ...usableNodes],
+      proxies: ["Proxy", AUTO_GROUP, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
       name: "Telegram",
       type: "select",
-      proxies: ["Proxy", ...regionNames, AUTO_GROUP, "DIRECT", ...usableNodes],
+      proxies: ["Proxy", AUTO_GROUP, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
       name: "Apple",
       type: "select",
-      proxies: ["Proxy", ...regionNames, AUTO_GROUP, "DIRECT", ...usableNodes],
+      proxies: ["Proxy", AUTO_GROUP, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
       name: "Microsoft",
       type: "select",
-      proxies: ["Proxy", ...regionNames, AUTO_GROUP, "DIRECT", ...usableNodes],
+      proxies: ["Proxy", AUTO_GROUP, ...regionNames, "DIRECT", ...usableNodes],
     },
   ];
 
