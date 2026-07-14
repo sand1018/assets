@@ -5,7 +5,7 @@ function main(config) {
   const rawProxies = Array.isArray(config.proxies) ? config.proxies : [];
   // 去掉官网/流量/到期等说明项，避免污染 url-test 与策略组。
   const proxies = rawProxies.filter(
-    (proxy) => proxy && proxy.name && !isNonNodeName(proxy.name)
+    (proxy) => proxy && proxy.name && !isNonNodeName(proxy.name),
   );
   config.proxies = proxies;
   const nodeNames = collectNodeNames(proxies);
@@ -75,52 +75,92 @@ function main(config) {
 
   // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
   const regionDefs = [
-    { name: "香港", icon: "🇭🇰", re: /香港|Hong\s?Kong|🇭🇰|(^|[^a-z])hk([^a-z]|$)/i },
-    { name: "台湾", icon: "🇹🇼", re: /台湾|台灣|Taiwan|🇹🇼|(^|[^a-z])tw([^a-z]|$)/i },
-    { name: "日本", icon: "🇯🇵", re: /日本|东京|大阪|Japan|🇯🇵|(^|[^a-z])jp([^a-z]|$)/i },
     {
-      name: "新加坡", icon: "🇸🇬",
+      name: "香港",
+      icon: "🇭🇰",
+      re: /香港|Hong\s?Kong|🇭🇰|(^|[^a-z])hk([^a-z]|$)/i,
+    },
+    {
+      name: "台湾",
+      icon: "🇹🇼",
+      re: /台湾|台灣|Taiwan|🇹🇼|(^|[^a-z])tw([^a-z]|$)/i,
+    },
+    {
+      name: "日本",
+      icon: "🇯🇵",
+      re: /日本|东京|大阪|Japan|🇯🇵|(^|[^a-z])jp([^a-z]|$)/i,
+    },
+    {
+      name: "新加坡",
+      icon: "🇸🇬",
       re: /新加坡|狮城|獅城|Singapore|🇸🇬|(^|[^a-z])sg([^a-z]|$)/i,
     },
     {
-      name: "美国", icon: "🇺🇸",
+      name: "美国",
+      icon: "🇺🇸",
       re: /美国|美國|United\s?States|America|🇺🇸|(^|[^a-z])(us|usa)([^a-z]|$)/i,
     },
-    { name: "韩国", icon: "🇰🇷", re: /韩国|韓國|首尔|Korea|🇰🇷|(^|[^a-z])kr([^a-z]|$)/i },
+    {
+      name: "韩国",
+      icon: "🇰🇷",
+      re: /韩国|韓國|首尔|Korea|🇰🇷|(^|[^a-z])kr([^a-z]|$)/i,
+    },
     {
       // 只用 uk 代码：gb 会误伤「剩余100GB」等流量标签，故不启用。
-      name: "英国", icon: "🇬🇧",
+      name: "英国",
+      icon: "🇬🇧",
       re: /英国|英國|United\s?Kingdom|Britain|London|伦敦|🇬🇧|(^|[^a-z])uk([^a-z]|$)/i,
     },
-    { name: "德国", icon: "🇩🇪", re: /德国|德國|Germany|🇩🇪|(^|[^a-z])de([^a-z]|$)/i },
-    { name: "法国", icon: "🇫🇷", re: /法国|法國|France|🇫🇷|(^|[^a-z])fr([^a-z]|$)/i },
     {
-      name: "荷兰", icon: "🇳🇱",
+      name: "德国",
+      icon: "🇩🇪",
+      re: /德国|德國|Germany|🇩🇪|(^|[^a-z])de([^a-z]|$)/i,
+    },
+    {
+      name: "法国",
+      icon: "🇫🇷",
+      re: /法国|法國|France|🇫🇷|(^|[^a-z])fr([^a-z]|$)/i,
+    },
+    {
+      name: "荷兰",
+      icon: "🇳🇱",
       re: /荷兰|荷蘭|Netherlands|Holland|🇳🇱|(^|[^a-z])nl([^a-z]|$)/i,
     },
     {
       // 不用裸 ca：会误收 US-CA（加州）。改用 can / 全称 / Emoji；配合下方首命中分配。
-      name: "加拿大", icon: "🇨🇦",
+      name: "加拿大",
+      icon: "🇨🇦",
       re: /加拿大|Canada|🇨🇦|(^|[^a-z])can([^a-z]|$)/i,
     },
     {
       // 用「澳洲/澳大利亚」而非裸「澳」，避开澳门。
-      name: "澳大利亚", icon: "🇦🇺",
+      name: "澳大利亚",
+      icon: "🇦🇺",
       re: /澳大利亚|澳洲|Australia|🇦🇺|(^|[^a-z])au([^a-z]|$)/i,
     },
-    { name: "泰国", icon: "🇹🇭", re: /泰国|泰國|Thailand|🇹🇭|(^|[^a-z])th([^a-z]|$)/i },
+    {
+      name: "泰国",
+      icon: "🇹🇭",
+      re: /泰国|泰國|Thailand|🇹🇭|(^|[^a-z])th([^a-z]|$)/i,
+    },
     // 省略 my 代码：撞英文 "my"，仅靠名称/Emoji 匹配。
     { name: "马来西亚", icon: "🇲🇾", re: /马来西亚|马来|Malaysia|🇲🇾/i },
     { name: "越南", icon: "🇻🇳", re: /越南|Vietnam|🇻🇳|(^|[^a-z])vn([^a-z]|$)/i },
     {
-      name: "菲律宾", icon: "🇵🇭",
+      name: "菲律宾",
+      icon: "🇵🇭",
       re: /菲律宾|菲律賓|Philippines|🇵🇭|(^|[^a-z])ph([^a-z]|$)/i,
     },
     {
-      name: "俄罗斯", icon: "🇷🇺",
+      name: "俄罗斯",
+      icon: "🇷🇺",
       re: /俄罗斯|俄羅斯|俄国|Russia|🇷🇺|(^|[^a-z])ru([^a-z]|$)/i,
     },
-    { name: "土耳其", icon: "🇹🇷", re: /土耳其|Turkey|🇹🇷|(^|[^a-z])tr([^a-z]|$)/i },
+    {
+      name: "土耳其",
+      icon: "🇹🇷",
+      re: /土耳其|Turkey|🇹🇷|(^|[^a-z])tr([^a-z]|$)/i,
+    },
     // 省略 in 代码：撞英文 "in"，仅靠名称/Emoji 匹配。
     { name: "印度", icon: "🇮🇳", re: /印度|India|🇮🇳/i },
   ];
@@ -140,8 +180,9 @@ function main(config) {
     // 统一延迟：剔除握手开销，url-test 测出的延迟更接近真实体感，Auto 组选节点更准。
     "unified-delay": true,
 
-    // 进程匹配模式：远控/P2P 直连依赖进程规则，always 比 strict 更稳定。
-    "find-process-mode": "always",
+    // 进程匹配模式：strict 由内核按需查找，省掉 always 对每条连接的强制进程查找。
+    // ⚠️ 若远控/Parsec 的进程直连规则失效（尤其 UDP 打洞流量），改回 "always"。
+    "find-process-mode": "strict",
 
     profile: {
       "store-selected": true,
@@ -227,6 +268,17 @@ function main(config) {
       privateip: buildIpProvider(RS_PREFIX, "private"),
       stun: buildSiteProvider(RS_PREFIX, "category-stun"),
       ai: buildSiteProvider(RS_PREFIX, "category-ai-!cn"),
+      // VPSDance/ai-proxy-rules 聚合集：补齐 category-ai-!cn 缺失的二线 AI
+      // （Suno/Runway/Luma/Character.AI 等），多源合并、每日更新；
+      // classical 行为（混合 DOMAIN/IP 规则），IP 条目自带 no-resolve。
+      aiextra: {
+        type: "http",
+        behavior: "classical",
+        format: "yaml",
+        interval: 86400,
+        path: "./ruleset/ai-extra.yaml",
+        url: "https://cdn.jsdelivr.net/gh/VPSDance/ai-proxy-rules@main/rules/clash/all.yaml",
+      },
       applecn: buildSiteProvider(RS_PREFIX, "apple-cn"),
       apple: buildSiteProvider(RS_PREFIX, "apple"),
       // MetaCubeX geosite 使用 microsoft@cn / azure@cn（不是 *-cn 文件名）
@@ -290,6 +342,11 @@ function main(config) {
       "RULE-SET,spotify,流媒体",
       "RULE-SET,telegram,Telegram",
       "RULE-SET,telegramip,Telegram,no-resolve",
+      // aiextra 是 classical 行为（逐条线性匹配），置于流媒体/Telegram 之后，
+      // 让高频流量免扫线性集；置于 Apple/Microsoft 之前，防止 microsoft 集的
+      // +.azure.com 等抢走 Copilot / Azure OpenAI（与下方国区直连集已验证零交集）。
+      "RULE-SET,aiextra,AI",
+
       // 国区 Apple / Microsoft 直连，避免全球规则集抢在 cn 前把国区流量送进策略组→Proxy。
       "RULE-SET,applecn,DIRECT",
       "RULE-SET,apple,Apple",
@@ -302,7 +359,8 @@ function main(config) {
 
       "RULE-SET,proxy,Proxy",
 
-      // 规则集首次下载失败时，保证 .cn 域名仍然直连。
+      // cn 规则集内容缺漏或缓存过期时，保证 .cn 域名仍然直连。
+      // 注：兜不住「首次下载失败」——无缓存且下载失败时 mihomo 直接启动失败。
       "DOMAIN-SUFFIX,cn,DIRECT",
       "RULE-SET,cn,DIRECT",
       "RULE-SET,cnip,DIRECT,no-resolve",
@@ -328,7 +386,7 @@ function isNonNodeName(name) {
   if (!n) return true;
   // 常见机场伪节点：官网、流量、到期、社群入口等。
   return /官网|官方|网站|网址|地址|订阅|流量|到期|过期|剩余|套餐|重置|距离|链接|机场|频道|群组|客服|通知|说明|教程|签到|邀请|返利|优惠|测试中|维护|离线|用完|耗尽|刷新|账号|密码|无法使用|流量重置|已用|可用|总量|加入|电报|微信|公众号|\bTG\b|\bTelegram\b|t\.me|discord|official|expire|traffic|surplus|quota|channel|invite|support|website|https?:\/\//i.test(
-    n
+    n,
   );
 }
 
