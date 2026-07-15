@@ -21,19 +21,19 @@ function main(config) {
     "https://doh.pub/dns-query#DIRECT",
   ];
 
-  // 策略组名（ACL4SSR 风格：emoji 前缀写在名称里，面板不依赖 icon 字段）。
+  // 策略组名：纯文字；图标由 proxy-groups 的 icon 字段提供（面板需支持，如 metacubexd/Verge）。
   const G = {
-    select: "🚀 节点选择",
-    auto: "♻️ 自动选择",
-    stream: "🎥 流媒体",
-    ai: "🤖 AI",
-    telegram: "📲 Telegram",
-    apple: "🍎 Apple",
-    microsoft: "Ⓜ️ Microsoft",
-    final: "🐟 漏网之鱼",
+    select: "节点选择",
+    auto: "自动选择",
+    stream: "流媒体",
+    ai: "AI",
+    telegram: "Telegram",
+    apple: "Apple",
+    microsoft: "Microsoft",
+    final: "漏网之鱼",
   };
 
-  // 国外 DoH：默认解析器使用，走 🐟 漏网之鱼 兜底组。
+  // 国外 DoH：默认解析器使用，走 漏网之鱼 兜底组。
   // 全部用纯 IP 形式，从源头避开下方对 dns.google / cloudflare-dns.com 的 REJECT 规则，
   // 不再依赖策略标签的隐式绕过行为来救场（1.1.1.1 / 8.8.8.8 证书 SAN 含对应 IP，TLS 校验正常）。
   const FOREIGN_DOH = [
@@ -86,37 +86,31 @@ function main(config) {
   };
 
   // 按节点名关键字归类地区；匹配不到节点的地区组自动剔除，避免空组报错。
-  // name 为纯地区名；emoji 用于策略组展示名（ACL4SSR 风格国旗前缀）。
+  // name 为纯地区名（展示名）；正则里的国旗 emoji 仅用于识别节点名，不写进策略组名。
   const regionDefs = [
     {
       name: "香港",
-      emoji: "🇭🇰",
       re: /香港|Hong\s?Kong|🇭🇰|(^|[^a-z])hk([^a-z]|$)/i,
     },
     {
       name: "台湾",
-      emoji: "🇹🇼",
       re: /台湾|台灣|Taiwan|🇹🇼|(^|[^a-z])tw([^a-z]|$)/i,
     },
     {
       name: "日本",
-      emoji: "🇯🇵",
       re: /日本|东京|大阪|Japan|🇯🇵|(^|[^a-z])jp([^a-z]|$)/i,
     },
     {
       name: "新加坡",
-      emoji: "🇸🇬",
       re: /新加坡|狮城|獅城|Singapore|🇸🇬|(^|[^a-z])sg([^a-z]|$)/i,
     },
     {
       // 不用裸 America：会误收 South America / American Samoa 等。
       name: "美国",
-      emoji: "🇺🇸",
       re: /美国|美國|United\s?States|🇺🇸|(^|[^a-z])(us|usa)([^a-z]|$)/i,
     },
     {
       name: "韩国",
-      emoji: "🇰🇷",
       re: /韩国|韓國|首尔|Korea|🇰🇷|(^|[^a-z])kr([^a-z]|$)/i,
     },
     {
@@ -124,65 +118,54 @@ function main(config) {
       // 不用裸 London：会把 Frankfurt-London / DE-London 等多地拼接名误收进英国。
       // 保留中文「伦敦」（机场节点几乎总是英区）；英文请靠 UK / Britain / 英国。
       name: "英国",
-      emoji: "🇬🇧",
       re: /英国|英國|United\s?Kingdom|Britain|伦敦|🇬🇧|(^|[^a-z])uk([^a-z]|$)/i,
     },
     {
       name: "德国",
-      emoji: "🇩🇪",
       re: /德国|德國|Germany|🇩🇪|(^|[^a-z])de([^a-z]|$)/i,
     },
     {
       name: "法国",
-      emoji: "🇫🇷",
       re: /法国|法國|France|🇫🇷|(^|[^a-z])fr([^a-z]|$)/i,
     },
     {
       name: "荷兰",
-      emoji: "🇳🇱",
       re: /荷兰|荷蘭|Netherlands|Holland|🇳🇱|(^|[^a-z])nl([^a-z]|$)/i,
     },
     {
       // 不用裸 ca：会误收 US-CA（加州）。改用 can / 全称 / 城市 / Emoji；配合下方首命中分配。
       name: "加拿大",
-      emoji: "🇨🇦",
       re: /加拿大|Canada|🇨🇦|Toronto|Vancouver|Montreal|Ottawa|Calgary|Edmonton|多伦多|温哥华|蒙特利尔|渥太华|卡加利|埃德蒙顿|(^|[^a-z])can([^a-z]|$)/i,
     },
     {
       // 用「澳洲/澳大利亚」而非裸「澳」，避开澳门。
       name: "澳大利亚",
-      emoji: "🇦🇺",
       re: /澳大利亚|澳洲|Australia|🇦🇺|(^|[^a-z])au([^a-z]|$)/i,
     },
     {
       name: "泰国",
-      emoji: "🇹🇭",
       re: /泰国|泰國|Thailand|🇹🇭|(^|[^a-z])th([^a-z]|$)/i,
     },
     // 省略 my 代码：撞英文 "my"，仅靠名称/Emoji 匹配。
-    { name: "马来西亚", emoji: "🇲🇾", re: /马来西亚|马来|Malaysia|🇲🇾/i },
+    { name: "马来西亚", re: /马来西亚|马来|Malaysia|🇲🇾/i },
     {
       name: "越南",
-      emoji: "🇻🇳",
       re: /越南|Vietnam|🇻🇳|(^|[^a-z])vn([^a-z]|$)/i,
     },
     {
       name: "菲律宾",
-      emoji: "🇵🇭",
       re: /菲律宾|菲律賓|Philippines|🇵🇭|(^|[^a-z])ph([^a-z]|$)/i,
     },
     {
       name: "俄罗斯",
-      emoji: "🇷🇺",
       re: /俄罗斯|俄羅斯|俄国|Russia|🇷🇺|(^|[^a-z])ru([^a-z]|$)/i,
     },
     {
       name: "土耳其",
-      emoji: "🇹🇷",
       re: /土耳其|Turkey|🇹🇷|(^|[^a-z])tr([^a-z]|$)/i,
     },
     // 省略 in 代码：撞英文 "in"，仅靠名称/Emoji 匹配。
-    { name: "印度", emoji: "🇮🇳", re: /印度|India|🇮🇳/i },
+    { name: "印度", re: /印度|India|🇮🇳/i },
   ];
   const regionGroups = buildRegionGroups(regionDefs, nodeNames);
   const regionNames = collectRegionNames(regionGroups);
@@ -385,7 +368,7 @@ function main(config) {
       "RULE-SET,cn,DIRECT",
       "RULE-SET,cnip,DIRECT,no-resolve",
 
-      // GeoIP 中国段改走 🐟 漏网之鱼，避免边界段误判时直接泄露。
+      // GeoIP 中国段改走 漏网之鱼，避免边界段误判时直接泄露。
       `GEOIP,CN,${G.final},no-resolve`,
 
       `MATCH,${G.final}`,
@@ -401,14 +384,17 @@ function main(config) {
 }
 
 // 判断是否为订阅里的说明/营销项（非真实节点）。
-// 刻意收窄：避免「非官方」「流量优化」「Telegram中继」等真实节点名被误杀。
+// 刻意收窄：避免「非官方」「Unofficial」「流量优化」「Telegram中继」「Channel Islands」等被误杀。
 function isNonNodeName(name) {
   const n = String(name).trim();
   if (!n) return true;
   if (/https?:\/\//i.test(n)) return true;
-  // 「官方」不匹配「非官方」：先去掉「非官方」再测。
-  const nForOfficial = n.replace(/非官方/g, "");
+
+  // 官方 / official：先剥掉否定前缀，再匹配（对称处理中英文）。
+  const nForOfficial = n.replace(/非官方/g, "").replace(/unofficial/gi, "");
   if (/官网|官方/.test(nForOfficial)) return true;
+  if (/\bofficial\b/i.test(nForOfficial)) return true;
+
   // 社群入口：Telegram/TG 仅在「群/频道/客服」等语境下剔除，保留「Telegram中继」类节点。
   if (
     /t\.me|(?:加入)?\s*Telegram\s*(?:群|频道|频道组|客服|通知)|(?:加入)?\s*TG\s*(?:群|频道|客服)|电报群|微信|公众号|discord/i.test(
@@ -417,8 +403,27 @@ function isNonNodeName(name) {
   ) {
     return true;
   }
-  // 流量说明项：不用裸「流量」，避免误杀「流量优化」；保留剩余/套餐/已用等账单文案。
-  return /网站|网址|地址|订阅|到期|过期|剩余|套餐|重置|距离|链接|机场|频道|群组|客服|通知|说明|教程|签到|邀请|返利|优惠|测试中|维护|离线|用完|耗尽|刷新|账号|密码|无法使用|流量重置|剩余流量|已用流量|可用流量|已用|可用|总量|加入|expire|traffic|surplus|quota|channel|invite|support|website|official/i.test(
+
+  // 英文 channel：不用裸 channel（会误伤 Channel Islands 等地名）；仅社群/订阅语境。
+  if (
+    /(?:telegram|tg|discord|join|subscribe|official)\s*channels?\b|\bchannels?\s*(?:invite|link|group)\b/i.test(
+      n,
+    )
+  ) {
+    return true;
+  }
+
+  // 英文 support：不用裸 support（会误伤节点名里的 Support）；仅客服/工单语境。
+  if (
+    /(?:customer|tech|technical|contact|help|online)\s*support\b|\bsupport\s*(?:group|channel|ticket|team)\b/i.test(
+      n,
+    )
+  ) {
+    return true;
+  }
+
+  // 流量/账单/营销说明：不用裸「流量」；中文「频道」仍剔（机场说明项），英文 channel 见上。
+  return /网站|网址|地址|订阅|到期|过期|剩余|套餐|重置|距离|链接|机场|频道|群组|客服|通知|说明|教程|签到|邀请|返利|优惠|测试中|维护|离线|用完|耗尽|刷新|账号|密码|无法使用|流量重置|剩余流量|已用流量|可用流量|已用|可用|总量|加入|expire|traffic|surplus|quota|invite|website/i.test(
     n,
   );
 }
@@ -464,20 +469,20 @@ function buildRegionGroups(regionDefs, nodeNames) {
       }
     }
     if (nodes.length > 0) {
-      groups.push({ name: region.name, emoji: region.emoji, nodes });
+      groups.push({ name: region.name, nodes });
     }
   }
   return groups;
 }
 
-// 地区外层 select 展示名：ACL4SSR 风格「国旗 emoji + 地区名」。
+// 地区外层 select 展示名：纯地区名（图标由 icon 字段提供）。
 function regionSelectLabel(region) {
-  return `${region.emoji} ${region.name}`;
+  return region.name;
 }
 
-// 地区内层 url-test 名：国旗 + 地区 + 自动；hidden，仅在地区组内可选。
+// 地区内层 url-test 名：地区 + 自动；hidden，仅在地区组内可选。
 function regionAutoLabel(region) {
-  return `${region.emoji} ${region.name}自动`;
+  return region.name + "自动";
 }
 
 // 收集地区组名称：用于策略组引用。
@@ -513,9 +518,9 @@ function buildIpProvider(prefix, name) {
   };
 }
 
-// 构建有节点时的策略组（双层 + hidden；ACL4SSR 风格 emoji 写在组名里）。
-// - ♻️ 自动选择：全局 url-test，面板可见
-// - 地区外层 select（可见，国旗 emoji 前缀）：首项「地区自动」+ 该区节点
+// 构建有节点时的策略组（双层 + hidden + icon；名称纯文字，图标走 icon 字段）。
+// - 自动选择：全局 url-test，面板可见
+// - 地区外层 select（可见，挂国旗 icon）：首项「地区自动」+ 该区节点
 // - 地区内层 url-test（hidden: true）：只测该区，面板不单独展示
 function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
   const urlTestBase = {
@@ -526,40 +531,74 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
     lazy: true,
   };
 
+  // 功能组图标：Koolson/Qure 图标集（jsdelivr）；面板需支持 icon 字段（metacubexd/Verge）。
+  const ICON = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color";
+  // 地区组国旗：circle-flags（HatScripts，MIT，圆形 SVG），按 ISO 3166-1 alpha-2 取。
+  const FLAG = "https://cdn.jsdelivr.net/gh/HatScripts/circle-flags@gh-pages/flags";
+  // 地区中文名 → ISO 代码（注意英国用 gb 不是 uk）。
+  const REGION_ISO = {
+    香港: "hk",
+    台湾: "tw",
+    日本: "jp",
+    新加坡: "sg",
+    美国: "us",
+    韩国: "kr",
+    英国: "gb",
+    德国: "de",
+    法国: "fr",
+    荷兰: "nl",
+    加拿大: "ca",
+    澳大利亚: "au",
+    泰国: "th",
+    马来西亚: "my",
+    越南: "vn",
+    菲律宾: "ph",
+    俄罗斯: "ru",
+    土耳其: "tr",
+    印度: "in",
+  };
+
   const groups = [
     {
       name: G.select,
       type: "select",
+      icon: `${ICON}/Proxy.png`,
       proxies: [G.auto, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
       name: G.auto,
       ...urlTestBase,
+      icon: `${ICON}/Auto.png`,
       proxies: usableNodes,
     },
     {
       name: G.stream,
       type: "select",
+      icon: `${ICON}/Streaming.png`,
       proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
       name: G.ai,
       type: "select",
+      icon: `${ICON}/AI.png`,
       proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
       name: G.telegram,
       type: "select",
+      icon: `${ICON}/Telegram.png`,
       proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
       name: G.apple,
       type: "select",
+      icon: `${ICON}/Apple.png`,
       proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
       name: G.microsoft,
       type: "select",
+      icon: `${ICON}/Microsoft.png`,
       proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
     },
   ];
@@ -574,16 +613,22 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
       // 仅作地区组内选项；需面板支持 hidden（metacubexd / Verge 等）
       hidden: true,
     });
-    groups.push({
+    const regionGroup = {
       name: regionSelect,
       type: "select",
       proxies: [regionAuto, ...region.nodes],
-    });
+    };
+    const iso = REGION_ISO[region.name];
+    if (iso) {
+      regionGroup.icon = `${FLAG}/${iso}.svg`;
+    }
+    groups.push(regionGroup);
   }
 
   groups.push({
     name: G.final,
     type: "select",
+    icon: `${ICON}/Final.png`,
     // 保持 fail-closed：不提供 DIRECT。
     proxies: [G.select, G.auto, ...regionNames, ...usableNodes],
   });
@@ -593,13 +638,14 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
 
 // 构建无节点时的策略组：全部 fail-closed 到 REJECT。
 function buildRejectGroups(G) {
+  const ICON = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color";
   return [
-    { name: G.select, type: "select", proxies: ["REJECT"] },
-    { name: G.stream, type: "select", proxies: ["REJECT"] },
-    { name: G.ai, type: "select", proxies: ["REJECT"] },
-    { name: G.telegram, type: "select", proxies: ["REJECT"] },
-    { name: G.apple, type: "select", proxies: ["REJECT"] },
-    { name: G.microsoft, type: "select", proxies: ["REJECT"] },
-    { name: G.final, type: "select", proxies: ["REJECT"] },
+    { name: G.select, type: "select", icon: `${ICON}/Proxy.png`, proxies: ["REJECT"] },
+    { name: G.stream, type: "select", icon: `${ICON}/Streaming.png`, proxies: ["REJECT"] },
+    { name: G.ai, type: "select", icon: `${ICON}/AI.png`, proxies: ["REJECT"] },
+    { name: G.telegram, type: "select", icon: `${ICON}/Telegram.png`, proxies: ["REJECT"] },
+    { name: G.apple, type: "select", icon: `${ICON}/Apple.png`, proxies: ["REJECT"] },
+    { name: G.microsoft, type: "select", icon: `${ICON}/Microsoft.png`, proxies: ["REJECT"] },
+    { name: G.final, type: "select", icon: `${ICON}/Final.png`, proxies: ["REJECT"] },
   ];
 }
