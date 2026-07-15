@@ -580,7 +580,7 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
     {
       name: G.ai,
       type: "select",
-      icon: `${ICON}/AI.png`,
+      icon: `${ICON}/Bot.png`,
       proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
@@ -592,7 +592,7 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
     {
       name: G.apple,
       type: "select",
-      icon: `${ICON}/Apple.png`,
+      icon: `${ICON}/Apple_2.png`,
       proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
@@ -642,9 +642,9 @@ function buildRejectGroups(G) {
   return [
     { name: G.select, type: "select", icon: `${ICON}/Proxy.png`, proxies: ["REJECT"] },
     { name: G.stream, type: "select", icon: `${ICON}/Streaming.png`, proxies: ["REJECT"] },
-    { name: G.ai, type: "select", icon: `${ICON}/AI.png`, proxies: ["REJECT"] },
+    { name: G.ai, type: "select", icon: `${ICON}/Bot.png`, proxies: ["REJECT"] },
     { name: G.telegram, type: "select", icon: `${ICON}/Telegram.png`, proxies: ["REJECT"] },
-    { name: G.apple, type: "select", icon: `${ICON}/Apple.png`, proxies: ["REJECT"] },
+    { name: G.apple, type: "select", icon: `${ICON}/Apple_2.png`, proxies: ["REJECT"] },
     { name: G.microsoft, type: "select", icon: `${ICON}/Microsoft.png`, proxies: ["REJECT"] },
     { name: G.final, type: "select", icon: `${ICON}/Final.png`, proxies: ["REJECT"] },
   ];
