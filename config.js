@@ -30,8 +30,24 @@ function main(config) {
     telegram: "Telegram",
     apple: "Apple",
     microsoft: "Microsoft",
+    // 仅国外个人网盘；国内盘走下方 cn 直连，不进本组。
+    cloud: "网盘",
     final: "漏网之鱼",
   };
+
+  // blackmatrix7 Clash classical 规则：国外网盘域名/进程，挂到 G.cloud。
+  // 不含 Baidu/115 等国内盘；不含 Yandex 全站（过宽会把搜索等一并卷进网盘组）。
+  const BM_CLASH =
+    "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash";
+  const CLOUD_RULES = [
+    "PikPak",
+    "GoogleDrive",
+    "MEGA",
+    "Dropbox",
+    "OneDrive",
+    "TeraBox",
+    "Dubox",
+  ];
 
   // 国外 DoH：默认解析器使用，走 漏网之鱼 兜底组。
   // 全部用纯 IP 形式，从源头避开下方对 dns.google / cloudflare-dns.com 的 REJECT 规则，
@@ -292,6 +308,13 @@ function main(config) {
       disney: buildSiteProvider(RS_PREFIX, "disney"),
       youtube: buildSiteProvider(RS_PREFIX, "youtube"),
       spotify: buildSiteProvider(RS_PREFIX, "spotify"),
+      // 国外网盘：blackmatrix7 classical；provider 名小写，与下方 RULE-SET 对应。
+      ...Object.fromEntries(
+        CLOUD_RULES.map((name) => [
+          name.toLowerCase(),
+          buildBmClassicalProvider(BM_CLASH, name),
+        ]),
+      ),
       proxy: buildSiteProvider(RS_PREFIX, "geolocation-!cn"),
       cn: buildSiteProvider(RS_PREFIX, "cn"),
       cnip: buildIpProvider(RS_PREFIX, "cn"),
@@ -355,6 +378,9 @@ function main(config) {
       `RULE-SET,apple,${G.apple}`,
       "RULE-SET,microsoftcn,DIRECT",
       "RULE-SET,azurecn,DIRECT",
+      // OneDrive 须在 microsoft 全球集之前，否则 sharepoint/onedrive 会被 Microsoft 组抢走。
+      // 其余国外网盘亦置于 proxy 之前，便于单独选高速节点。
+      ...CLOUD_RULES.map((name) => `RULE-SET,${name.toLowerCase()},${G.cloud}`),
       `RULE-SET,microsoft,${G.microsoft}`,
 
       // 手动特例：强制直连（集中维护于顶部 MANUAL_DIRECT）。
@@ -518,6 +544,19 @@ function buildIpProvider(prefix, name) {
   };
 }
 
+// blackmatrix7 Clash classical 规则集（yaml，可含 DOMAIN/IP/PROCESS）。
+// folder 与文件名通常一致，如 PikPak/PikPak.yaml。
+function buildBmClassicalProvider(prefix, folder) {
+  return {
+    type: "http",
+    behavior: "classical",
+    format: "yaml",
+    interval: 86400,
+    path: `./ruleset/bm-${folder.toLowerCase()}.yaml`,
+    url: `${prefix}/${folder}/${folder}.yaml`,
+  };
+}
+
 // 构建有节点时的策略组（双层 + hidden + icon；名称纯文字，图标走 icon 字段）。
 // - 自动选择：全局 url-test，面板可见
 // - 地区外层 select（可见，挂国旗 icon）：首项「地区自动」+ 该区节点
@@ -534,7 +573,8 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
   // 功能组图标：Koolson/Qure 图标集（jsdelivr）；面板需支持 icon 字段（metacubexd/Verge）。
   const ICON = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color";
   // 地区组国旗：circle-flags（HatScripts，MIT，圆形 SVG），按 ISO 3166-1 alpha-2 取。
-  const FLAG = "https://cdn.jsdelivr.net/gh/HatScripts/circle-flags@gh-pages/flags";
+  const FLAG =
+    "https://cdn.jsdelivr.net/gh/HatScripts/circle-flags@gh-pages/flags";
   // 地区中文名 → ISO 代码（注意英国用 gb 不是 uk）。
   const REGION_ISO = {
     香港: "hk",
@@ -558,6 +598,7 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
     印度: "in",
   };
 
+  // 面板展示顺序：节点选择 / 自动选择 打底，功能组以 AI 为首。
   const groups = [
     {
       name: G.select,
@@ -572,15 +613,15 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
       proxies: usableNodes,
     },
     {
-      name: G.stream,
-      type: "select",
-      icon: `${ICON}/Streaming.png`,
-      proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
-    },
-    {
       name: G.ai,
       type: "select",
       icon: `${ICON}/Bot.png`,
+      proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
+    },
+    {
+      name: G.stream,
+      type: "select",
+      icon: `${ICON}/Streaming.png`,
       proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
     },
     {
@@ -599,6 +640,13 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
       name: G.microsoft,
       type: "select",
       icon: `${ICON}/Microsoft.png`,
+      proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
+    },
+    {
+      name: G.cloud,
+      type: "select",
+      // Qure 无 Cloud.png；Download 表示大流量网盘用途。
+      icon: `${ICON}/Download.png`,
       proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
     },
   ];
@@ -640,12 +688,53 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
 function buildRejectGroups(G) {
   const ICON = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color";
   return [
-    { name: G.select, type: "select", icon: `${ICON}/Proxy.png`, proxies: ["REJECT"] },
-    { name: G.stream, type: "select", icon: `${ICON}/Streaming.png`, proxies: ["REJECT"] },
-    { name: G.ai, type: "select", icon: `${ICON}/Bot.png`, proxies: ["REJECT"] },
-    { name: G.telegram, type: "select", icon: `${ICON}/Telegram.png`, proxies: ["REJECT"] },
-    { name: G.apple, type: "select", icon: `${ICON}/Apple_2.png`, proxies: ["REJECT"] },
-    { name: G.microsoft, type: "select", icon: `${ICON}/Microsoft.png`, proxies: ["REJECT"] },
-    { name: G.final, type: "select", icon: `${ICON}/Final.png`, proxies: ["REJECT"] },
+    {
+      name: G.select,
+      type: "select",
+      icon: `${ICON}/Proxy.png`,
+      proxies: ["REJECT"],
+    },
+    {
+      name: G.ai,
+      type: "select",
+      icon: `${ICON}/Bot.png`,
+      proxies: ["REJECT"],
+    },
+    {
+      name: G.stream,
+      type: "select",
+      icon: `${ICON}/Streaming.png`,
+      proxies: ["REJECT"],
+    },
+    {
+      name: G.telegram,
+      type: "select",
+      icon: `${ICON}/Telegram.png`,
+      proxies: ["REJECT"],
+    },
+    {
+      name: G.apple,
+      type: "select",
+      icon: `${ICON}/Apple_2.png`,
+      proxies: ["REJECT"],
+    },
+    {
+      name: G.microsoft,
+      type: "select",
+      icon: `${ICON}/Microsoft.png`,
+      proxies: ["REJECT"],
+    },
+    {
+      name: G.cloud,
+      type: "select",
+      icon: `${ICON}/Download.png`,
+      proxies: ["REJECT"],
+    },
+    {
+      name: G.final,
+      type: "select",
+      icon: `${ICON}/Final.png`,
+      proxies: ["REJECT"],
+    },
   ];
 }
