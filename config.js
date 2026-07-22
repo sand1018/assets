@@ -32,7 +32,6 @@ function main(config) {
     microsoft: "Microsoft",
     // 仅国外个人网盘；国内盘走下方 cn 直连，不进本组。
     cloud: "网盘",
-    ad: "广告拦截",
     bilibili: "哔哩哔哩",
     game: "游戏",
     final: "漏网之鱼",
@@ -509,8 +508,7 @@ function main(config) {
       disney: buildSiteProvider(RS_PREFIX, "disney"),
       youtube: buildSiteProvider(RS_PREFIX, "youtube"),
       spotify: buildSiteProvider(RS_PREFIX, "spotify"),
-      // 广告 / 推送 / B 站 / 游戏（借鉴 ACL4SSR 粒度，规则源仍用 MetaCubeX）。
-      ads: buildSiteProvider(RS_PREFIX, "category-ads-all"),
+      // 推送 / B 站 / 游戏（借鉴 ACL4SSR 粒度，规则源仍用 MetaCubeX）。
       googlefcm: buildSiteProvider(RS_PREFIX, "googlefcm"),
       bilibili: buildSiteProvider(RS_PREFIX, "bilibili"),
       ...Object.fromEntries(
@@ -548,9 +546,6 @@ function main(config) {
 
       "RULE-SET,private,DIRECT",
       "RULE-SET,privateip,DIRECT,no-resolve",
-
-      // 广告靠前拦截（可在「广告拦截」组改为 DIRECT 临时放行）。
-      `RULE-SET,ads,${G.ad}`,
 
       // 谷歌 FCM 推送直连，降低代理解析导致的通知延迟/失败。
       "RULE-SET,googlefcm,DIRECT",
@@ -903,13 +898,6 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
       proxies: followSelect,
     },
     {
-      // 默认 REJECT；可选 DIRECT 排查误杀。
-      name: G.ad,
-      type: "select",
-      icon: `${ICON}/Advertising.png`,
-      proxies: ["REJECT", "DIRECT"],
-    },
-    {
       // 默认直连；港澳台内容可切地区/节点。
       name: G.bilibili,
       type: "select",
@@ -1010,12 +998,6 @@ function buildRejectGroups(G) {
       type: "select",
       icon: `${ICON}/Download.png`,
       proxies: ["REJECT"],
-    },
-    {
-      name: G.ad,
-      type: "select",
-      icon: `${ICON}/Advertising.png`,
-      proxies: ["REJECT", "DIRECT"],
     },
     {
       // 无节点时仍直连，避免 B 站/游戏被 REJECT。
