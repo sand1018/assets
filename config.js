@@ -834,7 +834,7 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
     印度: "in",
   };
 
-  // 跟总闸：节点选择优先（AI / 流媒体 / TG / 网盘）。
+  // 跟总闸：节点选择优先（AI / 流媒体 / TG / 网盘 / 微软 / 游戏）。
   const followSelect = [
     G.select,
     G.auto,
@@ -842,7 +842,7 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
     "DIRECT",
     ...usableNodes,
   ];
-  // 默认直连：Apple / Microsoft / 游戏 / B 站（需要时代理）。
+  // 默认直连：Apple / B 站（需要时代理）。
   const directFirst = [
     "DIRECT",
     G.select,
@@ -891,11 +891,11 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
       proxies: directFirst,
     },
     {
-      // 默认 DIRECT：国区 microsoftcn/azurecn 直连；海外微软需代理时再改。
+      // 默认跟节点选择：国区仍由 microsoftcn/azurecn 直连；GitHub/海外微软随总闸。
       name: G.microsoft,
       type: "select",
       icon: `${ICON}/Microsoft.png`,
-      proxies: directFirst,
+      proxies: followSelect,
     },
     {
       name: G.cloud,
@@ -912,11 +912,11 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
       proxies: directFirst,
     },
     {
-      // 默认直连；商店/联机异常时再改节点选择。
+      // 默认跟节点选择；延迟敏感时可在组内改 DIRECT/地区。
       name: G.game,
       type: "select",
       icon: `${ICON}/Game.png`,
-      proxies: directFirst,
+      proxies: followSelect,
     },
   ];
 
