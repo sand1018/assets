@@ -32,8 +32,21 @@ function main(config) {
     microsoft: "Microsoft",
     // 仅国外个人网盘；国内盘走下方 cn 直连，不进本组。
     cloud: "网盘",
+    ad: "广告拦截",
+    bilibili: "哔哩哔哩",
+    game: "游戏",
     final: "漏网之鱼",
   };
+
+  // 游戏平台域名集（MetaCubeX geosite）；挂到 G.game，默认 DIRECT。
+  const GAME_SITES = [
+    "steam",
+    "epicgames",
+    "ea",
+    "origin",
+    "nintendo",
+    "playstation",
+  ];
 
   // blackmatrix7 Clash classical 规则：国外网盘域名/进程，挂到 G.cloud。
   // 不含 Baidu/115 等国内盘；不含 Yandex 全站（过宽会把搜索等一并卷进网盘组）。
@@ -62,6 +75,192 @@ function main(config) {
   // bootstrap 只解析 DoH 服务器域名，必须是纯 IP。
   const BOOTSTRAP_DNS = ["223.5.5.5", "119.29.29.29"];
 
+  // 第三方公共 DNS / DoH / DoT 拦截（尽量彻底）：防浏览器/系统 Secure DNS 绕过 fake-ip 分流。
+  // 不含 223.5.5.5、119.29.29.29、doh.pub —— 本配置 CN_DOH / bootstrap 自用。
+  // 纯 DNS anycast 用 IP 全端口 REJECT；普通网站 HTTP/3 不走这些 IP，可正常分流。
+  // 无法穷尽所有自建/商业 DoH；系统侧仍建议关闭 Secure DNS。
+  const DOH_BLOCK_SUFFIXES = [
+    // Google
+    "dns.google",
+    "dns.google.com",
+    // Cloudflare（含 mozilla/chrome/family/security 等子域）
+    "cloudflare-dns.com",
+    "one.one.one.one",
+    "dns.cloudflare.com",
+    // Quad9
+    "dns.quad9.net",
+    "dns9.quad9.net",
+    "dns10.quad9.net",
+    "dns11.quad9.net",
+    "dns12.quad9.net",
+    "dns13.quad9.net",
+    // OpenDNS / Cisco
+    "doh.opendns.com",
+    "doh.familyshield.opendns.com",
+    "doh.sandbox.opendns.com",
+    "cisco-udns.com",
+    // AdGuard
+    "adguard-dns.com",
+    "adguard-dns.ru",
+    "dns.adguard.com",
+    "dns-family.adguard.com",
+    "dns-unfiltered.adguard.com",
+    // NextDNS / Control D
+    "dns.nextdns.io",
+    "dns.controld.com",
+    // Apple Private Relay / 系统 DoH
+    "doh.dns.apple.com",
+    "mask.icloud.com",
+    "mask-h2.icloud.com",
+    "mask.apple-dns.net",
+    // 其它常见公共 DoH
+    "doh.cleanbrowsing.org",
+    "security.cleanbrowsing.org",
+    "family.cleanbrowsing.org",
+    "adult.cleanbrowsing.org",
+    "dns.sb",
+    "doh.sb",
+    "doh.dns.sb",
+    "dns.switch.ch",
+    "dns.mullvad.net",
+    "adblock.dns.mullvad.net",
+    "base.dns.mullvad.net",
+    "extended.dns.mullvad.net",
+    "family.dns.mullvad.net",
+    "all.dns.mullvad.net",
+    "wikimedia-dns.org",
+    "dns.oszx.co",
+    "doh.appliedprivacy.net",
+    "doh.libredns.gr",
+    "dnsforge.de",
+    "ordns.he.net",
+    "dns.twnic.tw",
+    "doh.360.cn",
+    "dns.alidns.com",
+    "dns.rubyfish.cn",
+    "i.233py.com",
+    "dns.aa.net.uk",
+    "doh.ffmuc.net",
+    "dns.digitale-gesellschaft.ch",
+    "odvr.nic.cz",
+    "doh.pi-dns.com",
+    "dns.pi-dns.com",
+    // 故意不拦 doh.pub / 223.5.5.5 / 119.29.29.29：本配置 CN_DOH 与 bootstrap 依赖它们。
+  ];
+
+  // 公共递归 DNS 的 anycast IP（专用解析器，非整站 CDN）。全端口 REJECT 以覆盖 DoH2/DoH3/DoT/非常规端口。
+  const DOH_BLOCK_IPS = [
+    // Cloudflare DNS / 家庭与安全变体
+    "1.1.1.1",
+    "1.0.0.1",
+    "1.1.1.2",
+    "1.0.0.2",
+    "1.1.1.3",
+    "1.0.0.3",
+    // Google Public DNS
+    "8.8.8.8",
+    "8.8.4.4",
+    // Quad9
+    "9.9.9.9",
+    "149.112.112.112",
+    "9.9.9.10",
+    "149.112.112.10",
+    "9.9.9.11",
+    "149.112.112.11",
+    "9.9.9.12",
+    "149.112.112.12",
+    "9.9.9.13",
+    "149.112.112.13",
+    // OpenDNS
+    "208.67.222.222",
+    "208.67.220.220",
+    "208.67.222.123",
+    "208.67.220.123",
+    "208.67.222.2",
+    "208.67.220.2",
+    // AdGuard DNS
+    "94.140.14.14",
+    "94.140.15.15",
+    "94.140.14.15",
+    "94.140.15.16",
+    "94.140.14.140",
+    "94.140.14.141",
+    // CleanBrowsing
+    "185.228.168.9",
+    "185.228.169.9",
+    "185.228.168.10",
+    "185.228.169.11",
+    "185.228.168.168",
+    "185.228.169.168",
+    // Control D
+    "76.76.2.0",
+    "76.76.10.0",
+    "76.76.2.1",
+    "76.76.10.1",
+    "76.76.2.2",
+    "76.76.10.2",
+    "76.76.2.3",
+    "76.76.10.3",
+    "76.76.2.4",
+    "76.76.10.4",
+    "76.76.2.5",
+    "76.76.10.5",
+    // Comodo Secure DNS
+    "8.26.56.26",
+    "8.20.247.20",
+    // Yandex DNS
+    "77.88.8.8",
+    "77.88.8.1",
+    "77.88.8.2",
+    "77.88.8.3",
+    "77.88.8.88",
+    "77.88.8.7",
+    // DNS.SB
+    "185.222.222.222",
+    "185.184.222.222",
+    // LibreDNS
+    "116.202.176.26",
+    "116.203.70.27",
+    // Mullvad DNS
+    "194.242.2.2",
+    "194.242.2.3",
+    "194.242.2.4",
+    "194.242.2.5",
+    "194.242.2.6",
+    "194.242.2.9",
+    // NextDNS 公共 anycast（账号专用 IP 无法穷尽，靠域名规则）
+    "45.90.28.0",
+    "45.90.30.0",
+    "45.90.28.167",
+    "45.90.30.167",
+    // Level3 / CenturyLink
+    "209.244.0.3",
+    "209.244.0.4",
+    // Verisign Public DNS
+    "64.6.64.6",
+    "64.6.65.6",
+    // Neustar / UltraDNS
+    "156.154.70.1",
+    "156.154.71.1",
+    "156.154.70.2",
+    "156.154.71.2",
+    "156.154.70.3",
+    "156.154.71.3",
+    "156.154.70.4",
+    "156.154.71.4",
+    "156.154.70.5",
+    "156.154.71.5",
+    // Quad101 (TWNIC)
+    "101.101.101.101",
+    "101.102.103.104",
+    // OpenNIC 常用
+    "192.71.245.208",
+    "94.247.43.254",
+    // Switch.ch
+    "130.59.31.248",
+    "130.59.31.251",
+  ];
+
   // 手动直连特例：集中管理，避免散落在 rules 中段难维护。
   const MANUAL_DIRECT = [
     "DOMAIN-SUFFIX,lggafw.com,DIRECT",
@@ -70,7 +269,7 @@ function main(config) {
     "DOMAIN-SUFFIX,lanhuapp.com,DIRECT",
   ];
 
-  // 远程桌面 / 远控软件优先直连：必须放在 STUN 代理和 UDP/443 REJECT 前面。
+  // 远程桌面 / 远控软件优先直连：必须放在 STUN 代理规则前面。
   const REMOTE_DESKTOP_DIRECT = [
     "PROCESS-NAME-REGEX,(?i)(uuremote|gameviewer|uuyc|todesk|sunlogin|anydesk|teamviewer|rustdesk|mstsc),DIRECT",
     "DOMAIN-SUFFIX,todesk.com,DIRECT",
@@ -310,6 +509,13 @@ function main(config) {
       disney: buildSiteProvider(RS_PREFIX, "disney"),
       youtube: buildSiteProvider(RS_PREFIX, "youtube"),
       spotify: buildSiteProvider(RS_PREFIX, "spotify"),
+      // 广告 / 推送 / B 站 / 游戏（借鉴 ACL4SSR 粒度，规则源仍用 MetaCubeX）。
+      ads: buildSiteProvider(RS_PREFIX, "category-ads-all"),
+      googlefcm: buildSiteProvider(RS_PREFIX, "googlefcm"),
+      bilibili: buildSiteProvider(RS_PREFIX, "bilibili"),
+      ...Object.fromEntries(
+        GAME_SITES.map((name) => [name, buildSiteProvider(RS_PREFIX, name)]),
+      ),
       // 国外网盘：blackmatrix7 classical；provider 名小写，与下方 RULE-SET 对应。
       ...Object.fromEntries(
         CLOUD_RULES.map((name) => [
@@ -333,29 +539,27 @@ function main(config) {
       "DOMAIN,yacd.metacubex.one,DIRECT",
 
       "DOMAIN-KEYWORD,httpdns,REJECT",
+      // App HTTP DNS / 部分内置安全 DNS 域名关键字（子串；过宽误伤时再收窄）。
+      "DOMAIN-KEYWORD,-httpdns-,REJECT",
+      "DOMAIN-KEYWORD,dns-query,REJECT",
 
-      // 拦截第三方公共 DoH，防止浏览器/系统内置 DoH 绕过本地分流与 DNS。
-      // 无法封死「直连 DoH IP:443」；系统/浏览器仍应关闭 Secure DNS。
-      "DOMAIN-SUFFIX,dns.google,REJECT",
-      "DOMAIN-SUFFIX,cloudflare-dns.com,REJECT",
-      "DOMAIN-SUFFIX,one.one.one.one,REJECT",
-      "DOMAIN-SUFFIX,dns.quad9.net,REJECT",
-      "DOMAIN-SUFFIX,doh.opendns.com,REJECT",
-      "DOMAIN-SUFFIX,dns.adguard-dns.com,REJECT",
-      "DOMAIN-SUFFIX,dns.nextdns.io,REJECT",
-      "DOMAIN-SUFFIX,doh.dns.apple.com,REJECT",
-      "DOMAIN-SUFFIX,mask.icloud.com,REJECT",
-      "DOMAIN-SUFFIX,mask-h2.icloud.com,REJECT",
-      "DOMAIN-SUFFIX,mask.apple-dns.net,REJECT",
+      // 第三方公共 DoH/DoT/DNS IP：名单尽量全；普通站 HTTP/3 仍走后续规则分流。
+      ...buildDohRejectRules(DOH_BLOCK_SUFFIXES, DOH_BLOCK_IPS),
 
       "RULE-SET,private,DIRECT",
       "RULE-SET,privateip,DIRECT,no-resolve",
 
-      // 远控软件优先直连：必须位于下方 STUN 代理规则与 UDP/443 REJECT 之前，
+      // 广告靠前拦截（可在「广告拦截」组改为 DIRECT 临时放行）。
+      `RULE-SET,ads,${G.ad}`,
+
+      // 谷歌 FCM 推送直连，降低代理解析导致的通知延迟/失败。
+      "RULE-SET,googlefcm,DIRECT",
+
+      // 远控软件优先直连：必须位于下方 STUN 代理规则之前，
       // 否则打洞流量会被全局规则截走。
       ...REMOTE_DESKTOP_DIRECT,
 
-      // 可信 P2P 应用特批直连：必须位于下方 STUN 代理规则与 UDP/443 REJECT 之前，
+      // 可信 P2P 应用特批直连：必须位于下方 STUN 代理规则之前，
       // 否则 Parsec 等应用的打洞流量会被全局规则截走。
       ...buildTrustedP2PRules(TRUSTED_P2P),
 
@@ -365,9 +569,6 @@ function main(config) {
       `AND,((NETWORK,UDP),(DST-PORT,3478)),${G.select}`,
       `AND,((NETWORK,UDP),(DST-PORT,19302)),${G.select}`,
       `AND,((NETWORK,UDP),(DST-PORT,5349)),${G.select}`,
-
-      // 拦截 QUIC(UDP/443)：封 DoH3，并迫使 YouTube/Google 等回落 TCP。
-      "AND,((NETWORK,UDP),(DST-PORT,443)),REJECT",
 
       `RULE-SET,ai,${G.ai}`,
       `RULE-SET,netflix,${G.stream}`,
@@ -380,6 +581,12 @@ function main(config) {
       // 让高频流量免扫线性集；置于 Apple/Microsoft 之前，防止 microsoft 集的
       // +.azure.com 等抢走 Copilot / Azure OpenAI（与下方国区直连集已验证零交集）。
       `RULE-SET,aiextra,${G.ai}`,
+
+      // B 站：默认直连；港台限定可在「哔哩哔哩」组选手动/地区节点（须在 proxy/cn 之前）。
+      `RULE-SET,bilibili,${G.bilibili}`,
+
+      // 游戏平台：默认直连；须在 geolocation-!cn 之前，避免 Steam 等被送进节点选择。
+      ...GAME_SITES.map((name) => `RULE-SET,${name},${G.game}`),
 
       // 国区 Apple / Microsoft 直连，避免全球规则集抢在 cn 前把国区流量送进策略组→节点选择。
       "RULE-SET,applecn,DIRECT",
@@ -528,6 +735,25 @@ function collectRegionNames(regionGroups) {
   return names;
 }
 
+// 公共 DNS/DoH 拦截规则：域名后缀 + 纯解析器 IP 全端口 REJECT。
+function buildDohRejectRules(suffixes, ips) {
+  const rules = [];
+  const seen = new Set();
+  for (const suffix of suffixes) {
+    const rule = `DOMAIN-SUFFIX,${suffix},REJECT`;
+    if (seen.has(rule)) continue;
+    seen.add(rule);
+    rules.push(rule);
+  }
+  for (const ip of ips) {
+    const rule = `IP-CIDR,${ip}/32,REJECT,no-resolve`;
+    if (seen.has(rule)) continue;
+    seen.add(rule);
+    rules.push(rule);
+  }
+  return rules;
+}
+
 // 生成 domain 类型的 rule-provider 配置。
 function buildSiteProvider(prefix, name) {
   return {
@@ -606,6 +832,23 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
     印度: "in",
   };
 
+  // 跟总闸：节点选择优先（AI / 流媒体 / TG / 网盘）。
+  const followSelect = [
+    G.select,
+    G.auto,
+    ...regionNames,
+    "DIRECT",
+    ...usableNodes,
+  ];
+  // 默认直连：Apple / Microsoft / 游戏 / B 站（需要时代理）。
+  const directFirst = [
+    "DIRECT",
+    G.select,
+    G.auto,
+    ...regionNames,
+    ...usableNodes,
+  ];
+
   // 面板展示顺序：节点选择 / 自动选择 打底，功能组以 AI 为首。
   const groups = [
     {
@@ -624,38 +867,61 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
       name: G.ai,
       type: "select",
       icon: `${ICON}/Bot.png`,
-      proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
+      proxies: followSelect,
     },
     {
       name: G.stream,
       type: "select",
       icon: `${ICON}/Streaming.png`,
-      proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
+      proxies: followSelect,
     },
     {
       name: G.telegram,
       type: "select",
       icon: `${ICON}/Telegram.png`,
-      proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
+      proxies: followSelect,
     },
     {
+      // 默认 DIRECT：国区已由 applecn 直连；海外 Apple 需代理时再改。
       name: G.apple,
       type: "select",
       icon: `${ICON}/Apple_2.png`,
-      proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
+      proxies: directFirst,
     },
     {
+      // 默认 DIRECT：国区 microsoftcn/azurecn 直连；海外微软需代理时再改。
       name: G.microsoft,
       type: "select",
       icon: `${ICON}/Microsoft.png`,
-      proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
+      proxies: directFirst,
     },
     {
       name: G.cloud,
       type: "select",
       // Qure 无 Cloud.png；Download 表示大流量网盘用途。
       icon: `${ICON}/Download.png`,
-      proxies: [G.select, G.auto, ...regionNames, "DIRECT", ...usableNodes],
+      proxies: followSelect,
+    },
+    {
+      // 默认 REJECT；可选 DIRECT 排查误杀。
+      name: G.ad,
+      type: "select",
+      icon: `${ICON}/Advertising.png`,
+      proxies: ["REJECT", "DIRECT"],
+    },
+    {
+      // 默认直连；港澳台内容可切地区/节点。
+      name: G.bilibili,
+      type: "select",
+      icon: `${ICON}/Bilibili_2.png`,
+      proxies: directFirst,
+    },
+    {
+      // 默认直连；商店/联机异常时再改节点选择。
+      name: G.game,
+      type: "select",
+      icon: `${ICON}/Game.png`,
+      proxies: directFirst,
     },
   ];
 
@@ -744,6 +1010,25 @@ function buildRejectGroups(G) {
       type: "select",
       icon: `${ICON}/Download.png`,
       proxies: ["REJECT"],
+    },
+    {
+      name: G.ad,
+      type: "select",
+      icon: `${ICON}/Advertising.png`,
+      proxies: ["REJECT", "DIRECT"],
+    },
+    {
+      // 无节点时仍直连，避免 B 站/游戏被 REJECT。
+      name: G.bilibili,
+      type: "select",
+      icon: `${ICON}/Bilibili_2.png`,
+      proxies: ["DIRECT"],
+    },
+    {
+      name: G.game,
+      type: "select",
+      icon: `${ICON}/Game.png`,
+      proxies: ["DIRECT"],
     },
     {
       name: G.final,
