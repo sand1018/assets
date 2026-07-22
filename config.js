@@ -409,15 +409,22 @@ function main(config) {
       "store-fake-ip": true,
     },
 
-    // 域名嗅探：fake-ip 下兜底，从 TLS SNI / HTTP Host 还原域名。
+    // 域名嗅探：fake-ip 丢映射或应用直连 IP 时，从载荷还原域名再走规则。
+    // - HTTP/TLS：TCP Host / SNI
+    // - QUIC：UDP/443 等 ClientHello 里的 SNI（HTTP/3）；不配 ports 时内核默认也只嗅 443
+    // - STUN/TURN 明文无 SNI，嗅探无能为力 → 仍靠 stun 规则集 + UDP 3478/19302/5349
     sniffer: {
       enable: true,
       "force-dns-mapping": true,
       "parse-pure-ip": true,
+      // 全局 false：嗅探只用于匹配规则，不改真实目标 IP（避免部分 UDP/CDN 异常）。
+      // HTTP 单独 override-destination:true，便于按 Host 分流反代/多站点同 IP。
       "override-destination": false,
       sniff: {
         HTTP: { ports: [80, "8080-8880"], "override-destination": true },
         TLS: { ports: [443, 8443] },
+        // 补上 QUIC：否则 HTTP/3 走裸 IP 时只能靠 IP 规则，geosite 全失效。
+        QUIC: { ports: [443, 8443] },
       },
       "skip-domain": ["+.push.apple.com", "+.teams.microsoft.com"],
     },
