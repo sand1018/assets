@@ -49,13 +49,14 @@ function main(config) {
     "Dubox",
   ];
 
-  // 国外 DoH：默认解析器使用，走 漏网之鱼 兜底组。
+  // 国外 DoH：默认解析器使用，跟随「节点选择」总闸。
+  // 选节点/自动/地区时经代理出站（无 DNS 真 IP 直出）；选 DIRECT 时与关代理一致，DNS 也直连。
   // 全部用纯 IP 形式，从源头避开下方对 dns.google / cloudflare-dns.com 的 REJECT 规则，
   // 不再依赖策略标签的隐式绕过行为来救场（1.1.1.1 / 8.8.8.8 证书 SAN 含对应 IP，TLS 校验正常）。
   const FOREIGN_DOH = [
-    `https://1.1.1.1/dns-query#${G.final}`,
-    `https://1.0.0.1/dns-query#${G.final}`,
-    `https://8.8.8.8/dns-query#${G.final}`,
+    `https://1.1.1.1/dns-query#${G.select}`,
+    `https://1.0.0.1/dns-query#${G.select}`,
+    `https://8.8.8.8/dns-query#${G.select}`,
   ];
 
   // bootstrap 只解析 DoH 服务器域名，必须是纯 IP。
@@ -225,7 +226,8 @@ function main(config) {
 
     tun: {
       enable: true,
-      stack: "system",
+      // mixed：DNS 劫持比 system 更稳；若某应用异常再退回 system。
+      stack: "mixed",
       "dns-hijack": ["any:53", "tcp://any:853", "udp://any:853"],
       "auto-route": true,
       "auto-detect-interface": true,
@@ -249,7 +251,7 @@ function main(config) {
       "direct-nameserver": CN_DOH,
       "direct-nameserver-follow-policy": false,
 
-      // 默认解析器：国外 DoH 经 漏网之鱼，国内域名由 nameserver-policy 指回 CN_DOH。
+      // 默认解析器：国外 DoH 经节点选择（与总闸一致；DIRECT 时 DNS 也直连），国内域名由 nameserver-policy 指回 CN_DOH。
       nameserver: FOREIGN_DOH,
 
       "nameserver-policy": {
@@ -333,12 +335,18 @@ function main(config) {
       "DOMAIN-KEYWORD,httpdns,REJECT",
 
       // 拦截第三方公共 DoH，防止浏览器/系统内置 DoH 绕过本地分流与 DNS。
+      // 无法封死「直连 DoH IP:443」；系统/浏览器仍应关闭 Secure DNS。
       "DOMAIN-SUFFIX,dns.google,REJECT",
       "DOMAIN-SUFFIX,cloudflare-dns.com,REJECT",
+      "DOMAIN-SUFFIX,one.one.one.one,REJECT",
       "DOMAIN-SUFFIX,dns.quad9.net,REJECT",
       "DOMAIN-SUFFIX,doh.opendns.com,REJECT",
       "DOMAIN-SUFFIX,dns.adguard-dns.com,REJECT",
       "DOMAIN-SUFFIX,dns.nextdns.io,REJECT",
+      "DOMAIN-SUFFIX,doh.dns.apple.com,REJECT",
+      "DOMAIN-SUFFIX,mask.icloud.com,REJECT",
+      "DOMAIN-SUFFIX,mask-h2.icloud.com,REJECT",
+      "DOMAIN-SUFFIX,mask.apple-dns.net,REJECT",
 
       "RULE-SET,private,DIRECT",
       "RULE-SET,privateip,DIRECT,no-resolve",
@@ -692,6 +700,13 @@ function buildRejectGroups(G) {
       name: G.select,
       type: "select",
       icon: `${ICON}/Proxy.png`,
+      proxies: ["REJECT"],
+    },
+    {
+      // 无节点时保留组名，避免其它引用落空；国外 DoH 此时走 #节点选择 → REJECT。
+      name: G.auto,
+      type: "select",
+      icon: `${ICON}/Auto.png`,
       proxies: ["REJECT"],
     },
     {
