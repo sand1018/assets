@@ -417,12 +417,13 @@ function main(config) {
       enable: true,
       "force-dns-mapping": true,
       "parse-pure-ip": true,
-      // 全局 false：嗅探只用于匹配规则，不改真实目标 IP（避免部分 UDP/CDN 异常）。
-      // HTTP 单独 override-destination:true，便于按 Host 分流反代/多站点同 IP。
+      // 全局 false：QUIC/UDP 不改目标 IP（部分 HTTP/3 CDN 会异常）。
+      // HTTP/TLS 必须 override：Cursor Helper 等会绕过 fake-ip 直连真实 IP，
+      // 不覆盖则按 IP 先命中 MATCH（漏网之鱼），面板虽显示 api2.cursor.sh 却进不了 AI 组。
       "override-destination": false,
       sniff: {
         HTTP: { ports: [80, "8080-8880"], "override-destination": true },
-        TLS: { ports: [443, 8443] },
+        TLS: { ports: [443, 8443], "override-destination": true },
         // 补上 QUIC：否则 HTTP/3 走裸 IP 时只能靠 IP 规则，geosite 全失效。
         QUIC: { ports: [443, 8443] },
       },
