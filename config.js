@@ -494,16 +494,15 @@ function main(config) {
       privateip: buildIpProvider(RS_PREFIX, "private"),
       stun: buildSiteProvider(RS_PREFIX, "category-stun"),
       ai: buildSiteProvider(RS_PREFIX, "category-ai-!cn"),
-      // VPSDance/ai-proxy-rules 聚合集：补齐 category-ai-!cn 缺失的二线 AI
-      // （Suno/Runway/Luma/Character.AI 等），多源合并、每日更新；
-      // classical 行为（混合 DOMAIN/IP 规则），IP 条目自带 no-resolve。
-      aiextra: {
+      // 海外 AI 全集（VPSDance 多源合并去重，含 Cursor / OpenAI / Claude 等）。
+      // 用 global.yaml 不用 all.yaml，避免国内 AI 被送进代理组。
+      aiglobal: {
         type: "http",
         behavior: "classical",
         format: "yaml",
         interval: 86400,
-        path: "./ruleset/ai-extra.yaml",
-        url: "https://cdn.jsdelivr.net/gh/VPSDance/ai-proxy-rules@main/rules/clash/all.yaml",
+        path: "./ruleset/ai-global.yaml",
+        url: "https://cdn.jsdelivr.net/gh/VPSDance/ai-proxy-rules@main/rules/clash/global.yaml",
       },
       applecn: buildSiteProvider(RS_PREFIX, "apple-cn"),
       apple: buildSiteProvider(RS_PREFIX, "apple"),
@@ -579,10 +578,9 @@ function main(config) {
       `RULE-SET,spotify,${G.stream}`,
       `RULE-SET,telegram,${G.telegram}`,
       `RULE-SET,telegramip,${G.telegram},no-resolve`,
-      // aiextra 是 classical 行为（逐条线性匹配），置于流媒体/Telegram 之后，
-      // 让高频流量免扫线性集；置于 Apple/Microsoft 之前，防止 microsoft 集的
-      // +.azure.com 等抢走 Copilot / Azure OpenAI（与下方国区直连集已验证零交集）。
-      `RULE-SET,aiextra,${G.ai}`,
+      // 海外 AI 全集：classical 线性匹配，置于流媒体/Telegram 之后免扫高频流量；
+      // 置于 Apple/Microsoft 之前，防止 microsoft 集抢走 Copilot / Azure OpenAI / Cursor。
+      `RULE-SET,aiglobal,${G.ai}`,
 
       // B 站：默认直连；港台限定可在「哔哩哔哩」组选手动/地区节点（须在 proxy/cn 之前）。
       `RULE-SET,bilibili,${G.bilibili}`,
