@@ -467,17 +467,14 @@ function main(config) {
       },
 
       // 不再放通用 +.stun.*，避免浏览器 WebRTC/STUN 丢失 fake-ip 域名上下文。
+      // NTP 故意不进 filter：UDP/123 无 SNI，必须保留 fake-ip 域名映射才能命中下方 ntp 规则集；
+      // 放进 filter 会解析成真 IP，随后被 applecn/cn 直连，Claude 时区检测会看到国内。
       "fake-ip-filter": [
         "+.lan",
         "+.local",
         "+.localdomain",
         "+.home.arpa",
         "localhost.ptlogin2.qq.com",
-        "time.*.com",
-        "time.*.gov",
-        "time.*.apple.com",
-        "ntp.*.com",
-        "+.ntp.org",
         "*.msftconnecttest.com",
         "*.msftncsi.com",
         "+.ocsp.*",
@@ -495,6 +492,8 @@ function main(config) {
       privateip: buildIpProvider(RS_PREFIX, "private"),
       stun: buildSiteProvider(RS_PREFIX, "category-stun"),
       ai: buildSiteProvider(RS_PREFIX, "category-ai-!cn"),
+      // Claude Code 用 NTP 判时区；须与 AI 同出口。含 time.apple.com / 阿里云 NTP，须排在 applecn/cn 前。
+      ntp: buildSiteProvider(RS_PREFIX, "category-ntp"),
       // 海外 AI 全集（VPSDance 多源合并去重，含 Cursor / OpenAI / Claude 等）。
       // 用 global.yaml 不用 all.yaml，避免国内 AI 被送进代理组。
       aiglobal: {
@@ -573,6 +572,8 @@ function main(config) {
       `AND,((NETWORK,UDP),(DST-PORT,5349)),${G.select}`,
 
       `RULE-SET,ai,${G.ai}`,
+      // 须在 applecn/microsoft/cn 之前，否则 time.apple.com / time.windows.com / ntp.aliyun.com 被直连。
+      `RULE-SET,ntp,${G.ai}`,
       `RULE-SET,netflix,${G.stream}`,
       `RULE-SET,disney,${G.stream}`,
       `RULE-SET,youtube,${G.stream}`,
