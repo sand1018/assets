@@ -923,7 +923,7 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
       // 默认直连；港澳台内容可切地区/节点。
       name: G.bilibili,
       type: "select",
-      icon: `${ICON}/Bilibili_2.png`,
+      icon: `${ICON}/bilibili_2.png`,
       proxies: directFirst,
     },
     {
@@ -1031,7 +1031,7 @@ function buildRejectGroups(G) {
       // 无节点时仍直连，避免 B 站/游戏被 REJECT。
       name: G.bilibili,
       type: "select",
-      icon: `${ICON}/Bilibili_2.png`,
+      icon: `${ICON}/bilibili_2.png`,
       proxies: ["DIRECT"],
     },
     {
