@@ -515,6 +515,8 @@ function main(config) {
       disney: buildSiteProvider(RS_PREFIX, "disney"),
       youtube: buildSiteProvider(RS_PREFIX, "youtube"),
       spotify: buildSiteProvider(RS_PREFIX, "spotify"),
+      // 成人整包；挂流媒体。须在下方 proxy（geolocation-!cn）之前命中。
+      porn: buildSiteProvider(RS_PREFIX, "category-porn"),
       // 推送 / B 站 / 游戏（借鉴 ACL4SSR 粒度，规则源仍用 MetaCubeX）。
       googlefcm: buildSiteProvider(RS_PREFIX, "googlefcm"),
       google: buildSiteProvider(RS_PREFIX, "google"),
@@ -580,6 +582,7 @@ function main(config) {
       `RULE-SET,disney,${G.stream}`,
       `RULE-SET,youtube,${G.stream}`,
       `RULE-SET,spotify,${G.stream}`,
+      `RULE-SET,porn,${G.stream}`,
       `RULE-SET,telegram,${G.telegram}`,
       `RULE-SET,telegramip,${G.telegram},no-resolve`,
       // 海外 AI 全集：classical 线性匹配，置于流媒体/Telegram 之后免扫高频流量；
