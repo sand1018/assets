@@ -895,7 +895,7 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
       // 默认跟节点选择。例外仅两条：YouTube→流媒体，Gemini→AI。
       name: G.google,
       type: "select",
-      icon: `${ICON}/Google.png`,
+      icon: `${ICON}/Google_Search.png`,
       proxies: followSelect,
     },
     {
@@ -1006,7 +1006,7 @@ function buildRejectGroups(G) {
     {
       name: G.google,
       type: "select",
-      icon: `${ICON}/Google.png`,
+      icon: `${ICON}/Google_Search.png`,
       proxies: ["REJECT"],
     },
     {
