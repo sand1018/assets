@@ -28,6 +28,7 @@ function main(config) {
     stream: "流媒体",
     ai: "AI",
     telegram: "Telegram",
+    google: "Google",
     apple: "Apple",
     microsoft: "Microsoft",
     // 仅国外个人网盘；国内盘走下方 cn 直连，不进本组。
@@ -48,12 +49,12 @@ function main(config) {
   ];
 
   // blackmatrix7 Clash classical 规则：国外网盘域名/进程，挂到 G.cloud。
+  // Google Drive 归 Google 组，不进本组。
   // 不含 Baidu/115 等国内盘；不含 Yandex 全站（过宽会把搜索等一并卷进网盘组）。
   const BM_CLASH =
     "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash";
   const CLOUD_RULES = [
     "PikPak",
-    "GoogleDrive",
     "MEGA",
     "Dropbox",
     "OneDrive",
@@ -516,6 +517,10 @@ function main(config) {
       spotify: buildSiteProvider(RS_PREFIX, "spotify"),
       // 推送 / B 站 / 游戏（借鉴 ACL4SSR 粒度，规则源仍用 MetaCubeX）。
       googlefcm: buildSiteProvider(RS_PREFIX, "googlefcm"),
+      google: buildSiteProvider(RS_PREFIX, "google"),
+      googleip: buildIpProvider(RS_PREFIX, "google"),
+      // Drive 桌面端进程/域名；classical，挂 Google 组（不进网盘组）。
+      googledrive: buildBmClassicalProvider(BM_CLASH, "GoogleDrive"),
       bilibili: buildSiteProvider(RS_PREFIX, "bilibili"),
       ...Object.fromEntries(
         GAME_SITES.map((name) => [name, buildSiteProvider(RS_PREFIX, name)]),
@@ -553,9 +558,6 @@ function main(config) {
       "RULE-SET,private,DIRECT",
       "RULE-SET,privateip,DIRECT,no-resolve",
 
-      // 谷歌 FCM 推送直连，降低代理解析导致的通知延迟/失败。
-      "RULE-SET,googlefcm,DIRECT",
-
       // 远控软件优先直连：必须位于下方 STUN 代理规则之前，
       // 否则打洞流量会被全局规则截走。
       ...REMOTE_DESKTOP_DIRECT,
@@ -581,7 +583,7 @@ function main(config) {
       `RULE-SET,telegram,${G.telegram}`,
       `RULE-SET,telegramip,${G.telegram},no-resolve`,
       // 海外 AI 全集：classical 线性匹配，置于流媒体/Telegram 之后免扫高频流量；
-      // 置于 Apple/Microsoft 之前，防止 microsoft 集抢走 Copilot / Azure OpenAI / Cursor。
+      // 置于 Apple/Google/Microsoft 之前，防止 microsoft/google 集抢走 Copilot / Gemini / Cursor。
       `RULE-SET,aiglobal,${G.ai}`,
 
       // B 站：默认直连；港台限定可在「哔哩哔哩」组选手动/地区节点（须在 proxy/cn 之前）。
@@ -595,9 +597,15 @@ function main(config) {
       `RULE-SET,apple,${G.apple}`,
       "RULE-SET,microsoftcn,DIRECT",
       "RULE-SET,azurecn,DIRECT",
+      // Google 一律进 Google 组；仅 YouTube→流媒体、Gemini→AI（规则已在更前）。
+      // Drive classical 须在 geosite google 前以覆盖桌面端进程。
       // OneDrive 须在 microsoft 全球集之前，否则 sharepoint/onedrive 会被 Microsoft 组抢走。
       // 其余国外网盘亦置于 proxy 之前，便于单独选高速节点。
+      `RULE-SET,googledrive,${G.google}`,
+      `RULE-SET,googlefcm,${G.google}`,
       ...CLOUD_RULES.map((name) => `RULE-SET,${name.toLowerCase()},${G.cloud}`),
+      `RULE-SET,google,${G.google}`,
+      `RULE-SET,googleip,${G.google},no-resolve`,
       `RULE-SET,microsoft,${G.microsoft}`,
 
       // 手动特例：强制直连（集中维护于顶部 MANUAL_DIRECT）。
@@ -834,7 +842,7 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
     印度: "in",
   };
 
-  // 跟总闸：节点选择优先（AI / 流媒体 / TG / 网盘 / 微软 / 游戏）。
+  // 跟总闸：节点选择优先（AI / 流媒体 / TG / Google / 网盘 / 微软 / 游戏）。
   const followSelect = [
     G.select,
     G.auto,
@@ -881,6 +889,13 @@ function buildProxyGroups(G, urlTest, usableNodes, regionGroups, regionNames) {
       name: G.telegram,
       type: "select",
       icon: `${ICON}/Telegram.png`,
+      proxies: followSelect,
+    },
+    {
+      // 默认跟节点选择。例外仅两条：YouTube→流媒体，Gemini→AI。
+      name: G.google,
+      type: "select",
+      icon: `${ICON}/Google.png`,
       proxies: followSelect,
     },
     {
@@ -986,6 +1001,12 @@ function buildRejectGroups(G) {
       name: G.telegram,
       type: "select",
       icon: `${ICON}/Telegram.png`,
+      proxies: ["REJECT"],
+    },
+    {
+      name: G.google,
+      type: "select",
+      icon: `${ICON}/Google.png`,
       proxies: ["REJECT"],
     },
     {
