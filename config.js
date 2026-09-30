@@ -16,9 +16,11 @@ function main(config) {
   const URL_TEST = "http://www.gstatic.com/generate_204";
 
   // 国内 DoH：国内域名和直连流量使用，强制走 DIRECT。
+  // 只用带 IP SAN 的纯 IP DoH（已核实 223.5.5.5 / 223.6.6.6 证书 SAN 含对应 IP）。
+  // 不用 doh.pub：域名 DoH 必须经 bootstrap 明文解析，且 DNSPod 对 DNSSEC 校验不完整。
   const CN_DOH = [
     "https://223.5.5.5/dns-query#DIRECT",
-    "https://doh.pub/dns-query#DIRECT",
+    "https://223.6.6.6/dns-query#DIRECT",
   ];
 
   // 策略组名：纯文字；图标由 proxy-groups 的 icon 字段提供（面板需支持，如 metacubexd/Verge）。
@@ -64,19 +66,26 @@ function main(config) {
 
   // 国外 DoH：默认解析器使用，跟随「节点选择」总闸。
   // 选节点/自动/地区时经代理出站（无 DNS 真 IP 直出）；选 DIRECT 时与关代理一致，DNS 也直连。
-  // 全部用纯 IP 形式，从源头避开下方对 dns.google / cloudflare-dns.com 的 REJECT 规则，
-  // 不再依赖策略标签的隐式绕过行为来救场（1.1.1.1 / 8.8.8.8 证书 SAN 含对应 IP，TLS 校验正常）。
+  // 全部用纯 IP 形式，从源头避开下方对 dns.google / cloudflare-dns.com 的 REJECT 规则。
+  // 这三台 IP 不得写入 DOH_BLOCK_IPS：总闸为 DIRECT 时 DoH 走直连，IP REJECT 会掐死国外解析，
+  // 查询随后落到国内解析器（泄露 + DNSSEC 校验被跳过）。浏览器 Secure DNS 仍被域名规则拦截。
   const FOREIGN_DOH = [
     `https://1.1.1.1/dns-query#${G.select}`,
     `https://1.0.0.1/dns-query#${G.select}`,
     `https://8.8.8.8/dns-query#${G.select}`,
   ];
 
-  // bootstrap 只解析 DoH 服务器域名，必须是纯 IP。
-  const BOOTSTRAP_DNS = ["223.5.5.5", "119.29.29.29"];
+  // bootstrap 只解析 DoH 服务器域名；必须是 IP，且用加密 DNS，避免 UDP/53 明文泄露。
+  // 当前 CN_DOH / FOREIGN_DOH 均为纯 IP，正常路径不会用到；留作以后若再加域名 DoH 的兜底。
+  const BOOTSTRAP_DNS = [
+    "https://223.5.5.5/dns-query",
+    "https://223.6.6.6/dns-query",
+    "tls://223.5.5.5",
+  ];
 
   // 第三方公共 DNS / DoH / DoT 拦截（尽量彻底）：防浏览器/系统 Secure DNS 绕过 fake-ip 分流。
-  // 不含 223.5.5.5、119.29.29.29、doh.pub —— 本配置 CN_DOH / bootstrap 自用。
+  // 不含 223.5.5.5 / 223.6.6.6 —— CN_DOH / bootstrap 自用。
+  // 不含 1.1.1.1 / 1.0.0.1 / 8.8.8.8 —— FOREIGN_DOH 自用；域名形态仍拦。
   // 纯 DNS anycast 用 IP 全端口 REJECT；普通网站 HTTP/3 不走这些 IP，可正常分流。
   // 无法穷尽所有自建/商业 DoH；系统侧仍建议关闭 Secure DNS。
   const DOH_BLOCK_SUFFIXES = [
@@ -145,21 +154,25 @@ function main(config) {
     "odvr.nic.cz",
     "doh.pi-dns.com",
     "dns.pi-dns.com",
-    // 故意不拦 doh.pub / 223.5.5.5 / 119.29.29.29：本配置 CN_DOH 与 bootstrap 依赖它们。
+    // DNSPod / doh.pub：已移出 CN_DOH，拦掉以免应用走 Tencent DoH 绕过 fake-ip。
+    "doh.pub",
+    "dns.pub",
+    "dot.pub",
   ];
 
   // 公共递归 DNS 的 anycast IP（专用解析器，非整站 CDN）。全端口 REJECT 以覆盖 DoH2/DoH3/DoT/非常规端口。
   const DOH_BLOCK_IPS = [
-    // Cloudflare DNS / 家庭与安全变体
-    "1.1.1.1",
-    "1.0.0.1",
+    // Cloudflare DNS 家庭/安全变体。1.1.1.1 / 1.0.0.1 留给 FOREIGN_DOH，不在此拦截。
     "1.1.1.2",
     "1.0.0.2",
     "1.1.1.3",
     "1.0.0.3",
-    // Google Public DNS
-    "8.8.8.8",
+    // Google Public DNS 备用。8.8.8.8 留给 FOREIGN_DOH，不在此拦截。
     "8.8.4.4",
+    // DNSPod（119.29.29.29 明文 DNSSEC 校验不完整；DoH IP 会绕过 fake-ip）
+    "119.29.29.29",
+    "1.12.12.12",
+    "120.53.53.53",
     // Quad9
     "9.9.9.9",
     "149.112.112.112",
@@ -448,7 +461,7 @@ function main(config) {
       "use-hosts": false,
       "respect-rules": true,
 
-      // bootstrap 只解析 DoH 服务器域名，不承载普通域名查询。
+      // bootstrap 只解析 DoH 服务器域名，不承载普通域名查询；加密 IP，无 UDP/53 明文。
       "default-nameserver": BOOTSTRAP_DNS,
 
       // 解析代理节点域名，打破 respect-rules 的循环依赖。
