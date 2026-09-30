@@ -64,15 +64,14 @@ function main(config) {
     "Dubox",
   ];
 
-  // 国外 DoH：默认解析器使用，跟随「节点选择」总闸。
+  // 国外 DoH：默认解析器使用，跟随「节点选择」总闸。只用 Cloudflare（隐私更好：不发 ECS，权威查询带 DO）。
   // 选节点/自动/地区时经代理出站（无 DNS 真 IP 直出）；选 DIRECT 时与关代理一致，DNS 也直连。
   // 全部用纯 IP 形式，从源头避开下方对 dns.google / cloudflare-dns.com 的 REJECT 规则。
-  // 这三台 IP 不得写入 DOH_BLOCK_IPS：总闸为 DIRECT 时 DoH 走直连，IP REJECT 会掐死国外解析，
+  // 这两台 IP 不得写入 DOH_BLOCK_IPS：总闸为 DIRECT 时 DoH 走直连，IP REJECT 会掐死国外解析，
   // 查询随后落到国内解析器（泄露 + DNSSEC 校验被跳过）。浏览器 Secure DNS 仍被域名规则拦截。
   const FOREIGN_DOH = [
     `https://1.1.1.1/dns-query#${G.select}`,
     `https://1.0.0.1/dns-query#${G.select}`,
-    `https://8.8.8.8/dns-query#${G.select}`,
   ];
 
   // bootstrap 只解析 DoH 服务器域名；必须是 IP，且用加密 DNS，避免 UDP/53 明文泄露。
@@ -85,7 +84,7 @@ function main(config) {
 
   // 第三方公共 DNS / DoH / DoT 拦截（尽量彻底）：防浏览器/系统 Secure DNS 绕过 fake-ip 分流。
   // 不含 223.5.5.5 / 223.6.6.6 —— CN_DOH / bootstrap 自用。
-  // 不含 1.1.1.1 / 1.0.0.1 / 8.8.8.8 —— FOREIGN_DOH 自用；域名形态仍拦。
+  // 不含 1.1.1.1 / 1.0.0.1 —— FOREIGN_DOH 自用；域名形态仍拦。
   // 纯 DNS anycast 用 IP 全端口 REJECT；普通网站 HTTP/3 不走这些 IP，可正常分流。
   // 无法穷尽所有自建/商业 DoH；系统侧仍建议关闭 Secure DNS。
   const DOH_BLOCK_SUFFIXES = [
@@ -167,7 +166,8 @@ function main(config) {
     "1.0.0.2",
     "1.1.1.3",
     "1.0.0.3",
-    // Google Public DNS 备用。8.8.8.8 留给 FOREIGN_DOH，不在此拦截。
+    // Google Public DNS：已移出 FOREIGN_DOH，主备一并拦。
+    "8.8.8.8",
     "8.8.4.4",
     // DNSPod（119.29.29.29 明文 DNSSEC 校验不完整；DoH IP 会绕过 fake-ip）
     "119.29.29.29",
